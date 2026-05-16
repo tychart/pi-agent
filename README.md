@@ -56,4 +56,4 @@ cd ~/.pi && git pull && pi update --extensions
 
 - `auth.json` must be created manually on each machine after setup
 - **Sessions are synced in this repo.** If you open the same project at the same path on two machines (e.g. `/home/tychart/projects/readflow`), their conversations will mesh into one. Windows vs. Linux paths create separate folders since the directory encoding differs.
-- This repo is private — credentials and conversation history stay local
+- This repo is private, and credentials `auth.json` is included in `.gitignore`

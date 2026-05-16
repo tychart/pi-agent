@@ -1,0 +1,3 @@
+{
+  "litellm": { "type": "api_key", "key": "YOUR_LITELLM_API_KEY" }
+}
