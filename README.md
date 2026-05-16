@@ -29,7 +29,7 @@ pi update --extensions
 
 # 4. Add credentials
 # Copy a template or create ~/.pi/agent/auth.json with your keys
-# (see the auth.json.example once added)
+# (see the auth.json.example located at .pi/agent/auth.json.example)
 
 # 5. (Optional) Install utility binaries
 # rg and fd are gitignored — install via your package manager:
@@ -41,8 +41,9 @@ pi update --extensions
 ## Updating
 
 ```bash
-```bash
-cd ~/.pi && git pull && pi update --extensions
+cd ~/.pi
+git pull
+pi update --extensions
 ```
 
 ## What's gitignored
