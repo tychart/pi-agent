@@ -1,0 +1,12 @@
+{
+  "lastChangelogVersion": "0.74.0",
+  "defaultProvider": "litellm",
+  "defaultModel": "qwen3.6:35b-llama.cpp",
+  "retry": {
+    "enabled": true
+  },
+  "packages": [
+    "npm:@plannotator/pi-extension",
+    "npm:pi-web-access"
+  ]
+}

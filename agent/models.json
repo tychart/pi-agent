@@ -1,0 +1,23 @@
+{
+  "providers": {
+    "ollama": {
+      "baseUrl": "http://localhost:11434/v1",
+      "api": "openai-completions",
+      "apiKey": "ollama",
+      "models": [
+        { "id": "gemma4:latest" },
+        { "id": "qwen3.6:35b" }
+      ]
+    },
+    "litellm": {
+      "baseUrl": "https://litellm.tychart.com/v1",
+      "api": "openai-completions",
+      "apiKey": "litellm",
+      "models": [
+        { "id": "qwen3.6:35b-ollama" },
+        { "id": "qwen3.6:35b-llama.cpp" },
+        { "id": "gemma4:latest-ollama" }
+      ]
+    }
+  }
+}

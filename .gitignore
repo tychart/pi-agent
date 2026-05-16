@@ -1,0 +1,11 @@
+# API keys and credentials
+agent/auth.json
+
+# Precompiled binaries (machine-specific)
+agent/bin/
+
+# Extension/npm dependencies (installed on each machine)
+agent/node_modules/
+
+# Compiled extensions (auto-generated)
+agent/extensions/**/*.js
