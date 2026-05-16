@@ -41,15 +41,13 @@ pi update --extensions
 ## Updating
 
 ```bash
+```bash
 cd ~/.pi && git pull && pi update --extensions
-
-> Note: sessions are tracked in this repo and will mesh across machines when the cwd path matches exactly (e.g. `/home/tychart/projects/readflow` on two machines shares one conversation). Windows vs Linux path differences create separate session folders.
 ```
 
 ## What's gitignored
 
 - `agent/auth.json` — API keys (machine-specific)
-- `agent/sessions/` — conversation history (per-machine)
 - `agent/bin/` — precompiled binaries (platform-specific)
 - `agent/node_modules/` — installed deps
 - `agent/extensions/**/*.js` — compiled output
@@ -57,5 +55,5 @@ cd ~/.pi && git pull && pi update --extensions
 ## Notes
 
 - `auth.json` must be created manually on each machine after setup
-- Sessions are local per-machine — they mesh only if the cwd path matches exactly
+- **Sessions are synced in this repo.** If you open the same project at the same path on two machines (e.g. `/home/tychart/projects/readflow`), their conversations will mesh into one. Windows vs. Linux paths create separate folders since the directory encoding differs.
 - This repo is private — credentials and conversation history stay local
