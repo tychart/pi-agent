@@ -49,6 +49,7 @@ pi update --extensions
 ## What's gitignored
 
 - `agent/auth.json` — API keys (machine-specific)
+- `agent/sessions/` — conversation history (per-machine, changes frequently)
 - `agent/bin/` — precompiled binaries (platform-specific)
 - `agent/node_modules/` — installed deps
 - `agent/extensions/**/*.js` — compiled output
@@ -56,5 +57,5 @@ pi update --extensions
 ## Notes
 
 - `auth.json` must be created manually on each machine after setup
-- **Sessions are synced in this repo.** If you open the same project at the same path on two machines (e.g. `/home/tychart/projects/readflow`), their conversations will mesh into one. Windows vs. Linux paths create separate folders since the directory encoding differs.
+- **Sessions are local per-machine** — they mesh only if the cwd path matches exactly across machines. Windows vs. Linux paths create separate folders.
 - This repo is private, and credentials `auth.json` is included in `.gitignore`

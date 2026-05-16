@@ -1,6 +1,9 @@
 # API keys and credentials
 agent/auth.json
 
+# Session history (per-machine, changes frequently)
+agent/sessions/
+
 # Precompiled binaries (machine-specific)
 agent/bin/
 
