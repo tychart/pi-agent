@@ -21,7 +21,7 @@ My [pi coding agent](https://pi.dev) configuration. Extensions, skills, prompt t
 npm install -g @earendil-works/pi-coding-agent
 
 # 2. Clone this repo
-git clone git@github.com:tychart/pi ~/.pi
+git clone git@github.com:tychart/pi-agent ~/.pi
 cd ~/.pi
 
 # 3. Install configured packages
@@ -42,6 +42,8 @@ PI_CODING_AGENT_DIR=~/.pi pi update --extensions
 
 ```bash
 cd ~/.pi && git pull && PI_CODING_AGENT_DIR=~/.pi pi update --extensions
+
+> Note: sessions are tracked in this repo and will mesh across machines when the cwd path matches exactly (e.g. `/home/tychart/projects/readflow` on two machines shares one conversation). Windows vs Linux path differences create separate session folders.
 ```
 
 ## What's gitignored
