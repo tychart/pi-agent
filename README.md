@@ -25,7 +25,7 @@ git clone git@github.com:tychart/pi-agent ~/.pi
 cd ~/.pi
 
 # 3. Install configured packages
-PI_CODING_AGENT_DIR=~/.pi pi update --extensions
+pi update --extensions
 
 # 4. Add credentials
 # Copy a template or create ~/.pi/agent/auth.json with your keys
@@ -41,7 +41,7 @@ PI_CODING_AGENT_DIR=~/.pi pi update --extensions
 ## Updating
 
 ```bash
-cd ~/.pi && git pull && PI_CODING_AGENT_DIR=~/.pi pi update --extensions
+cd ~/.pi && git pull && pi update --extensions
 
 > Note: sessions are tracked in this repo and will mesh across machines when the cwd path matches exactly (e.g. `/home/tychart/projects/readflow` on two machines shares one conversation). Windows vs Linux path differences create separate session folders.
 ```
