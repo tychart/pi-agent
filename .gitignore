@@ -9,6 +9,7 @@ agent/bin/
 
 # Extension/npm dependencies (installed on each machine)
 agent/node_modules/
+agent/npm/
 
 # Compiled extensions (auto-generated)
 agent/extensions/**/*.js
