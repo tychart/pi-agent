@@ -17,19 +17,26 @@ My [pi coding agent](https://pi.dev) configuration. Extensions, skills, prompt t
 ## Setup (first time)
 
 ```bash
+
 # 1. Install pi
 npm install -g @earendil-works/pi-coding-agent
 
-# 2. Clone this repo
-git clone git@github.com:tychart/pi-agent ~/.pi
-cd ~/.pi
+# 2. Clone config into ~/.pi, preserving local ignored files
+tmpdir="$(mktemp -d)"
+git clone git@github.com:tychart/pi-agent "$tmpdir/pi-agent"
+
+mkdir -p ~/.pi
+rsync -a "$tmpdir/pi-agent/" ~/.pi/
+
+rm -rf "$tmpdir"
 
 # 3. Install configured packages
+cd ~/.pi
 pi update --extensions
 
-# 4. Add credentials
-# Copy a template or create ~/.pi/agent/auth.json with your keys
-# (see the auth.json.example located at .pi/agent/auth.json.example)
+# 4. Add credentials if needed
+cp -n ~/.pi/agent/auth.json.example ~/.pi/agent/auth.json
+$EDITOR ~/.pi/agent/auth.json
 
 # 5. (Optional) Install utility binaries
 # rg and fd are gitignored — install via your package manager:
