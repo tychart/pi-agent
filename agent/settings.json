@@ -1,7 +1,7 @@
 {
   "lastChangelogVersion": "0.75.3",
-  "defaultProvider": "openai",
-  "defaultModel": "gpt-5.4",
+  "defaultProvider": "litellm",
+  "defaultModel": "qwen3.6:35b-llama.cpp",
   "retry": {
     "enabled": true
   },
