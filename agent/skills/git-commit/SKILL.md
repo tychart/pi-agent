@@ -9,10 +9,24 @@ description: Stages and commits all changed and new files, then pushes to GitHub
 
 When the user asks to commit and push:
 
-1. Run `git status` to see what changed
-2. Stage all files: `git add -A`
-3. Commit with a short, helpful message describing what changed
-4. Push: `git push`
+1. Review the current conversation for context about what work was done.
+2. Inspect the repo before committing:
+   - Run `git status` to see what changed
+   - Run a concise diff summary such as `git diff --stat` (and/or `git diff --cached --stat` if relevant)
+   - If the conversation context is not enough to explain the changes, inspect the actual diff for the most important files so the commit message matches the code that changed
+3. Stage all files: `git add -A`
+4. Create an automatic commit message based on both:
+   - the conversation context, and
+   - the actual git changes (`git status`, diff summary, and key diffs when needed)
+5. Format the commit message as:
+   - a relatively short single-line subject that is helpful and descriptive
+   - a slightly longer description/body that explains the main changes or intent
+6. Prefer a message that is specific, concrete, and readable rather than generic.
+   - Good subject examples: `Add validation for schedule imports`, `Fix broken sidebar navigation state`
+   - Avoid vague subjects like `Update files` or `Misc changes`
+7. If you cannot confidently infer a good commit message from the conversation and git changes, ask the user to confirm or edit the generated message before committing.
+8. Commit using both the subject and description/body.
+9. Push: `git push`
 
 ## Handling Rebase Conflicts
 
@@ -30,4 +44,7 @@ If `git push` is rejected:
 - Run `git pull --rebase`, resolve any conflicts via `ask-for-clarification`, then retry `git push`
 - If the remote has changes you didn't expect, describe them to the user and ask if they want to keep both sets of changes
 
-Report the commit hash and whether the push succeeded.
+Report:
+- the final commit subject
+- the commit hash
+- whether the push succeeded

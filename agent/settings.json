@@ -1,12 +1,13 @@
 {
   "lastChangelogVersion": "0.75.3",
-  "defaultProvider": "litellm",
-  "defaultModel": "qwen3.6:35b-llama.cpp",
+  "defaultProvider": "openai",
+  "defaultModel": "gpt-5.4",
   "retry": {
     "enabled": true
   },
   "packages": [
     "npm:@plannotator/pi-extension",
     "npm:pi-web-access"
-  ]
+  ],
+  "defaultThinkingLevel": "medium"
 }
