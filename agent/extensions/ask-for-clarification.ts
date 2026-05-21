@@ -6,18 +6,21 @@ const ClarificationQuestionSchema = Type.Object({
 		description: "A concise clarification question to ask the user.",
 	}),
 	options: Type.Array(Type.String({ minLength: 1 }), {
-		description: "Short multiple-choice options for the user.",
+		description:
+			"Short multiple-choice options for the user. Do not include a generic Other/type-your-own option; the extension always adds that automatically.",
 		minItems: 2,
 		maxItems: 5,
 	}),
 	allowOther: Type.Optional(
 		Type.Boolean({
-			description: "Allow the user to type a custom answer if none of the options fit.",
+			description:
+				"Deprecated compatibility field. Custom typed answers are always available through the Other option.",
 		}),
 	),
 	typedFallbackPlaceholder: Type.Optional(
 		Type.String({
-			description: "Optional placeholder to show if the user chooses to type a custom answer.",
+			description:
+				"Optional hint for the typed-answer editor. Kept for compatibility even though the RPC editor has no real placeholder field.",
 		}),
 	),
 });
@@ -54,12 +57,32 @@ interface ClarificationResultDetails {
 const TOOL_NAME = "ask_for_clarification";
 const STATUS_KEY = "ask-for-clarification";
 const OTHER_OPTION = "Other / type my own answer";
+const OTHER_OPTION_NORMALIZED = "other type my own answer";
 
 function ensureClarificationToolIsActive(pi: ExtensionAPI) {
 	const activeTools = pi.getActiveTools();
 	if (!activeTools.includes(TOOL_NAME)) {
 		pi.setActiveTools([...activeTools, TOOL_NAME]);
 	}
+}
+
+function normalizeOptionLabel(option: string): string {
+	return option
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, " ")
+		.trim();
+}
+
+function isOtherLikeOption(option: string): boolean {
+	const normalized = normalizeOptionLabel(option);
+	return (
+		normalized === OTHER_OPTION_NORMALIZED ||
+		normalized === "other" ||
+		normalized === "other type your own answer" ||
+		normalized === "other type a custom answer" ||
+		normalized === "other custom" ||
+		normalized === "something else"
+	);
 }
 
 function formatAnswers(answers: ClarificationAnswer[]): string {
@@ -103,9 +126,10 @@ export default function askForClarificationExtension(pi: ExtensionAPI) {
 		description:
 			"Ask the user one to three concise clarification questions whenever there is any meaningful uncertainty about intent, scope, constraints, priorities, success criteria, or which implementation they want. This tool is safe to call repeatedly in the same task to drill down, verify assumptions, and confirm understanding before continuing.",
 		promptSnippet:
-			"Default clarification tool: ask the user one to three concise multiple-choice questions, and call it repeatedly whenever uncertainty remains.",
+			"Default clarification tool: ask the user one to three concise multiple-choice questions. Do not include a generic Other option in the provided choices because the extension already adds one automatically. Call it repeatedly whenever uncertainty remains.",
 		promptGuidelines: [
 			"Use ask_for_clarification whenever there is any non-trivial uncertainty about what the user wants; prefer clarifying over guessing.",
+			"When supplying question options to ask_for_clarification, do not include a generic Other/custom/free-text choice because the extension already adds one automatically.",
 			"Use ask_for_clarification before planning, before implementing, and again later if new uncertainty appears during the task.",
 			"Use ask_for_clarification to verify assumptions, confirm priorities, and narrow scope before taking irreversible or time-consuming action.",
 			"Use ask_for_clarification repeatedly when needed; multiple passes are better than silently guessing wrong.",
@@ -134,7 +158,7 @@ export default function askForClarificationExtension(pi: ExtensionAPI) {
 				const progress = `Clarification ${i + 1}/${params.questions.length}`;
 				ctx.ui.setStatus(STATUS_KEY, progress);
 
-				const options = question.allowOther ? [...question.options, OTHER_OPTION] : [...question.options];
+				const options = [...question.options.filter((option) => !isOtherLikeOption(option)), OTHER_OPTION];
 				const selected = await ctx.ui.select(question.question, options);
 
 				if (!selected) {
@@ -143,11 +167,11 @@ export default function askForClarificationExtension(pi: ExtensionAPI) {
 					return buildCancelledResult(params.intro, answers, "User cancelled clarification.");
 				}
 
-				if (question.allowOther && selected === OTHER_OPTION) {
-					const typed = await ctx.ui.input(
-						question.question,
-						question.typedFallbackPlaceholder?.trim() || "Type your answer",
-					);
+				if (selected === OTHER_OPTION) {
+					const editorTitle = question.typedFallbackPlaceholder?.trim()
+						? `${question.question} — ${question.typedFallbackPlaceholder.trim()}`
+						: `${question.question} — type your answer below`;
+					const typed = await ctx.ui.editor(editorTitle, "");
 
 					if (!typed?.trim()) {
 						ctx.ui.setStatus(STATUS_KEY, undefined);
@@ -211,6 +235,6 @@ export default function askForClarificationExtension(pi: ExtensionAPI) {
 	pi.on("before_agent_start", async (event) => ({
 		systemPrompt:
 			event.systemPrompt +
-			`\n\n## Clarification Policy\nThe user strongly prefers clarification and ongoing verification over guessing. Default toward using ${TOOL_NAME} whenever there is uncertainty.\n\nIf you are unsure about the user's exact intent, scope, constraints, priorities, success criteria, target files, preferred implementation, or whether your current interpretation is still correct, call ${TOOL_NAME} before proceeding.\n\nTreat any non-trivial uncertainty as a reason to call ${TOOL_NAME}. It is better to interrupt and verify than to continue on a shaky assumption.\n\nYou may call ${TOOL_NAME} repeatedly in the same task. Use it for:\n- initial clarification before planning or implementation\n- follow-up clarification when new ambiguity appears\n- drilling down from broad goals into specific requirements\n- confirming that your current understanding still matches the user's intent\n- validating an assumption before making edits, choosing an approach, or spending significant effort\n\nWhen a clarification round returns answers, do not treat that as the end by default. Read the user's answers carefully, identify what is still vague, and use those answers to generate the next, narrower set of questions. Each call to ${TOOL_NAME} should usually get more specific than the previous one until the task is well-scoped.\n\nGuidelines:\n- Ask one to three concise questions per call.\n- Prefer short multiple-choice options when possible.\n- Use typed fallback when the options may not capture the user's intent.\n- After each clarification round, restate your current understanding briefly.\n- Then inspect the answers and decide whether more follow-up clarification is needed.\n- If uncertainty remains after one clarification round, call ${TOOL_NAME} again with more specific questions instead of guessing.\n- When in doubt, verify.`,
+			`\n\n## Clarification Policy\nThe user strongly prefers clarification and ongoing verification over guessing. Default toward using ${TOOL_NAME} whenever there is uncertainty.\n\nIf you are unsure about the user's exact intent, scope, constraints, priorities, success criteria, target files, preferred implementation, or whether your current interpretation is still correct, call ${TOOL_NAME} before proceeding.\n\nTreat any non-trivial uncertainty as a reason to call ${TOOL_NAME}. It is better to interrupt and verify than to continue on a shaky assumption.\n\nYou may call ${TOOL_NAME} repeatedly in the same task. Use it for:\n- initial clarification before planning or implementation\n- follow-up clarification when new ambiguity appears\n- drilling down from broad goals into specific requirements\n- confirming that your current understanding still matches the user's intent\n- validating an assumption before making edits, choosing an approach, or spending significant effort\n\nWhen a clarification round returns answers, do not treat that as the end by default. Read the user's answers carefully, identify what is still vague, and use those answers to generate the next, narrower set of questions. Each call to ${TOOL_NAME} should usually get more specific than the previous one until the task is well-scoped.\n\nGuidelines:\n- Ask one to three concise questions per call.\n- Prefer short multiple-choice options when possible.\n- Do not include a generic Other/custom/free-text option in ask_for_clarification choices because the extension already adds one automatically.\n- Use typed fallback when the options may not capture the user's intent.\n- After each clarification round, restate your current understanding briefly.\n- Then inspect the answers and decide whether more follow-up clarification is needed.\n- If uncertainty remains after one clarification round, call ${TOOL_NAME} again with more specific questions instead of guessing.\n- When in doubt, verify.`,
 	}));
 }
