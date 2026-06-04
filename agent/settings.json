@@ -1,7 +1,7 @@
 {
-  "lastChangelogVersion": "0.75.3",
-  "defaultProvider": "litellm",
-  "defaultModel": "qwen3.6:35b-llama.cpp",
+  "lastChangelogVersion": "0.78.0",
+  "defaultProvider": "llama-swap",
+  "defaultModel": "qwen3.6-35b-normal-vram10",
   "retry": {
     "enabled": true
   },
