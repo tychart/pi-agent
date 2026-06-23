@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "0.78.0",
+  "lastChangelogVersion": "0.79.9",
   "defaultProvider": "llama-swap",
   "defaultModel": "qwen3.6-35b-normal-vram10",
   "retry": {
@@ -9,5 +9,6 @@
     "npm:@plannotator/pi-extension",
     "npm:pi-web-access"
   ],
-  "defaultThinkingLevel": "medium"
+  "defaultThinkingLevel": "medium",
+  "theme": "dark"
 }
