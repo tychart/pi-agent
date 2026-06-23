@@ -10,56 +10,47 @@
           "id": "qwen3.6-35b-normal-vram10",
           "name": "qwen3.6-normal-vram10",
           "input": ["text", "image"],
-          "contextWindow": 128000,
-          "maxTokens": 8192,
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cacheRead": 0,
-            "cacheWrite": 0
-          }
+          "contextWindow": 128000
         }
       ]
     },
 
-    "lmproxy": {
-      "baseUrl": "https://lmproxy.tychart.com/v1",
+    "litellm": {
+      "baseUrl": "https://litellm.tychart.com/v1",
       "api": "openai-completions",
-      "apiKey": "lmproxy",
+      "apiKey": "litellm",
       "models": [
         {
-          "id": "qwen3.6-normal",
-          "name": "Qwen 3.6 Normal via LM-Proxy",
-          "input": ["text"],
+          "id": "qwen3.6-35b-normal-vram10",
+          "name": "Qwen 3.6 128k 10gb",
+          "input": ["text", "image"],
           "contextWindow": 128000
         },
         {
-          "id": "qwen3.6-long",
-          "name": "Qwen 3.6 Long Context via LM-Proxy",
-          "reasoning": false,
+          "id": "qwen3.6-35b-normal-vram5",
+          "name": "Qwen 3.6 128k 5gb",
           "input": ["text", "image"],
-          "contextWindow": 256000,
-          "maxTokens": 16384,
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cacheRead": 0,
-            "cacheWrite": 0
-          }
+          "contextWindow": 128000
+        },
+        {
+          "id": "qwen3.6-35b-long-vram10",
+          "name": "Qwen 3.6 256k 10gb",
+          "input": ["text", "image"],
+          "contextWindow": 256000
+        },
+        {
+          "id": "qwen3.6-35b-long-vram5",
+          "name": "Qwen 3.6 256k 5gb",
+          "input": ["text", "image"],
+          "contextWindow": 256000
         },
         {
           "id": "gemma-fast",
-          "name": "Gemma Fast via LM-Proxy",
+          "name": "Gemma Fast",
           "reasoning": false,
           "input": ["text"],
           "contextWindow": 32768,
-          "maxTokens": 8192,
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cacheRead": 0,
-            "cacheWrite": 0
-          }
+          "maxTokens": 8192
         }
       ]
     }
