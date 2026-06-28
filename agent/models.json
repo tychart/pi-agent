@@ -50,6 +50,15 @@
           "maxTokens": 8192,
           "name": "Gemma Fast",
           "reasoning": false
+        },
+        {
+          "contextWindow": 256000,
+          "id": "deepseek/deepseek-v4-flash",
+          "input": [
+            "text",
+            "image"
+          ],
+          "name": "DeepSeek V4 Flash"
         }
       ]
     },
