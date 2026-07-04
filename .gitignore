@@ -15,3 +15,7 @@ agent/npm/
 
 # Compiled extensions (auto-generated)
 agent/extensions/**/*.js
+
+agent/litellm-models.json
+
+agent/tmp/
