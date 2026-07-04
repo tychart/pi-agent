@@ -1,0 +1,15 @@
+{
+  "phases": {
+    "planning": {
+      "activeTools": [
+        "grep",
+        "find",
+        "ls",
+        "ask_for_clarification",
+        "subagent",
+        "plannotator_submit_plan"
+      ],
+      "statusLabel": "⏸ plan"
+    }
+  }
+}
