@@ -1,0 +1,49 @@
+// Copy this file to agent/settings.json and update the machine-specific values
+// (defaultProvider, defaultModel, subagents.defaultModel)
+// Everything else can stay as-is across machines.
+
+// Machine-specific values — change per machine
+//   Job (GitHub Copilot):  "defaultProvider": "openai-codex", "defaultModel": "gpt-5"
+//   Job (OpenAI API):      "defaultProvider": "openai",         "defaultModel": "gpt-5"
+//   Home (LiteLLM):        "defaultProvider": "litellm",        "defaultModel": "qwen3.6-35b-normal-vram10"
+
+{
+  "defaultProvider": "litellm",
+  "defaultModel": "qwen3.6-35b-normal-vram10",
+
+  // Shared — same on every machine
+  "lastChangelogVersion": "0.80.3",
+  "retry": {
+    "enabled": true
+  },
+  "packages": [
+    "npm:@plannotator/pi-extension",
+    "npm:pi-web-access",
+    "npm:pi-provider-litellm",
+    "npm:pi-subagents"
+  ],
+  "defaultThinkingLevel": "high",
+  "theme": "dark",
+
+  // Subagent model configuration
+  "subagents": {
+    "defaultModel": "qwen3.6-35b-normal-vram10",
+    "agentOverrides": {
+      "reviewer": {
+        "model": "anthropic/claude-sonnet-4"
+      },
+      "planner": {
+        "model": "anthropic/claude-sonnet-4"
+      },
+      "scout": {
+        "model": "anthropic/claude-sonnet-4"
+      },
+      "worker": {
+        "model": "anthropic/claude-sonnet-4"
+      },
+      "oracle": {
+        "model": "anthropic/claude-sonnet-4"
+      }
+    }
+  }
+}

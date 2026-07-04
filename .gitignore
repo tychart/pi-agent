@@ -22,3 +22,7 @@ agent/extensions/**/*.js
 agent/litellm-models.json
 
 agent/tmp/
+
+# Subagent runtime artifacts
+.pi-subagents/
+agent/run-history.jsonl

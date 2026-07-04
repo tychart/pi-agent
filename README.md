@@ -7,17 +7,44 @@ My [pi coding agent](https://pi.dev) configuration. Extensions, skills, prompt t
 | Path | Purpose |
 |------|---------|
 | `agent/settings.json` | Global pi defaults (provider, model, packages) |
+| `agent/settings.json.example` | Template — copy to `settings.json` and adjust machine-specific values |
 | `agent/models.json` | Custom provider definitions (Ollama, LiteLLM) |
 | `agent/extensions/` | Custom TypeScript extensions |
-| `agent/AGENTS.md` | Global agent instructions (if added) |
-| `agent/skills/` | Custom skills (if added) |
-| `agent/prompts/` | Prompt templates (if added) |
-| `agent/themes/` | Custom themes (if added) |
+| `agent/skills/` | Custom skills |
+| `agent/prompts/` | Prompt templates |
+| `agent/agents/` | Custom agent definitions |
+| `.pi-subagents/` | Subagent runtime artifacts (gitignored) |
+
+### Installed packages
+
+| Package | Purpose |
+|---------|---------|
+| `npm:@plannotator/pi-extension` | Pi extension (install/upgrade) |
+| `npm:pi-web-access` | Web search, fetch content, get search content |
+| `npm:pi-provider-litellm` | LiteLLM provider integration |
+| `npm:pi-subagents` | Subagent delegation (chains, parallel, async) |
+
+### Custom extensions
+
+| File | Purpose |
+|------|---------|
+| `agent/extensions/ask-for-clarification.ts` | Ask clarifying questions before acting |
+| `agent/extensions/context-diff.ts` | Context diff generation |
+| `agent/extensions/tps.ts` | TPS provider |
+
+## Bootstrap (idempotent)
+
+Run this anywhere to reinstall everything to match the config exactly:
+
+```bash
+pi install npm:@plannotator/pi-extension npm:pi-web-access npm:pi-provider-litellm npm:pi-subagents && pi update --extensions
+```
+
+This command is idempotent — safe to run repeatedly. If a package is already installed at the right version it skips; if not (or if updated in npm), it installs/updates it. Then `pi update --extensions` re-syncs any custom TypeScript extensions.
 
 ## Setup (first time)
 
 ```bash
-
 # 1. Install pi
 npm install -g @earendil-works/pi-coding-agent
 
@@ -30,9 +57,9 @@ rsync -a "$tmpdir/pi-agent/" ~/.pi/
 
 rm -rf "$tmpdir"
 
-# 3. Install configured packages
+# 3. Bootstrap packages and extensions
 cd ~/.pi
-pi update --extensions
+pi install npm:@plannotator/pi-extension npm:pi-web-access npm:pi-provider-litellm npm:pi-subagents && pi update --extensions
 
 # 4. Add credentials if needed
 cp -n ~/.pi/agent/auth.json.example ~/.pi/agent/auth.json
@@ -50,19 +77,23 @@ $EDITOR ~/.pi/agent/auth.json
 ```bash
 cd ~/.pi
 git pull
-pi update --extensions
+pi install npm:@plannotator/pi-extension npm:pi-web-access npm:pi-provider-litellm npm:pi-subagents && pi update --extensions
 ```
 
 ## What's gitignored
 
 - `agent/auth.json` — API keys (machine-specific)
+- `agent/settings.json` — machine-specific settings (use `settings.json.example` as template)
+- `agent/run-history.jsonl` — machine-specific subagent run history
 - `agent/sessions/` — conversation history (per-machine, changes frequently)
 - `agent/bin/` — precompiled binaries (platform-specific)
 - `agent/node_modules/` — installed deps
 - `agent/extensions/**/*.js` — compiled output
+- `.pi-subagents/` — subagent runtime artifacts
 
 ## Notes
 
 - `auth.json` must be created manually on each machine after setup
+- `settings.json` must be created from `settings.json.example` on each machine (machine-specific values: provider, defaultModel, subagents.defaultModel)
 - **Sessions are local per-machine** — they mesh only if the cwd path matches exactly across machines. Windows vs. Linux paths create separate folders.
 - This repo is private, and credentials `auth.json` is included in `.gitignore`
