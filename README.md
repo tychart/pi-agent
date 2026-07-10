@@ -37,7 +37,11 @@ My [pi coding agent](https://pi.dev) configuration. Extensions, skills, prompt t
 Run this anywhere to reinstall everything to match the config exactly:
 
 ```bash
-pi install npm:@plannotator/pi-extension npm:pi-web-access npm:pi-provider-litellm npm:pi-subagents && pi update --extensions
+pi install npm:@plannotator/pi-extension \
+&& pi install npm:pi-web-access \
+&& pi install npm:pi-provider-litellm \
+&& pi install npm:pi-subagents \
+&& pi update --extensions
 ```
 
 This command is idempotent — safe to run repeatedly. If a package is already installed at the right version it skips; if not (or if updated in npm), it installs/updates it. Then `pi update --extensions` re-syncs any custom TypeScript extensions.
@@ -59,7 +63,11 @@ rm -rf "$tmpdir"
 
 # 3. Bootstrap packages and extensions
 cd ~/.pi
-pi install npm:@plannotator/pi-extension npm:pi-web-access npm:pi-provider-litellm npm:pi-subagents && pi update --extensions
+pi install npm:@plannotator/pi-extension \
+&& pi install npm:pi-web-access \
+&& pi install npm:pi-provider-litellm \
+&& pi install npm:pi-subagents \
+&& pi update --extensions
 
 # 4. Add credentials if needed
 cp -n ~/.pi/agent/auth.json.example ~/.pi/agent/auth.json
@@ -77,7 +85,11 @@ $EDITOR ~/.pi/agent/auth.json
 ```bash
 cd ~/.pi
 git pull
-pi install npm:@plannotator/pi-extension npm:pi-web-access npm:pi-provider-litellm npm:pi-subagents && pi update --extensions
+pi install npm:@plannotator/pi-extension \
+&& pi install npm:pi-web-access \
+&& pi install npm:pi-provider-litellm \
+&& pi install npm:pi-subagents \
+&& pi update --extensions
 ```
 
 ## What's gitignored
