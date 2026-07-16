@@ -1,0 +1,5 @@
+interface:
+  display_name: AutoHotkey
+  short_description: Create, improve, debug, and test AutoHotkey v2 scripts for Windows automation.
+  icon: keyboard
+  accent_color: "#2B579A"
