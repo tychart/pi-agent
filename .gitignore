@@ -28,3 +28,10 @@ agent/tmp/
 # Subagent runtime artifacts
 .pi-subagents/
 agent/run-history.jsonl
+
+# Auto-generated local state
+agent/models-store.json
+pi-session-manager/
+
+# Editor swap files
+*.swp

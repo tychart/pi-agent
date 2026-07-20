@@ -1,367 +1,293 @@
 ---
 name: slf4j-modernizer
-description: Modernize legacy Java logging to an abstraction-first SLF4J API with a Log4j2 backend, including dependency cleanup, backend-facade patterns, test migration, and verification.
+description: Modernize legacy Java logging toward SLF4J callers with a Log4j2 backend, preferring shared PRSCommonComponents LoggingBackendSupport for backend-specific needs and verifying dependency/provider correctness.
 ---
 
 # SLF4J Modernizer Skill
 
 ## Purpose
 
-Use this skill to migrate legacy Java repositories toward a consistent logging architecture where:
+Use this skill to migrate legacy Java logging toward a consistent shape where:
 
 - ordinary application and test code logs through **SLF4J**
-- **Log4j2** remains the backend implementation
-- any operation that truly requires backend-specific APIs is isolated behind a small shared abstraction such as **`LoggingBackendSupport`**
+- **Log4j2** remains the backend implementation unless the repo explicitly uses another backend strategy
+- backend-only operations stay behind a narrow support abstraction instead of leaking through business code
+- for this org, the preferred shared abstraction is **`com.recondotech.prs.utils.LoggingBackendSupport` from `components:PRSCommonComponents`**
 - compatibility bridges are treated as temporary migration aids, not permanent architecture
 
-This skill is designed for large, uneven, real-world codebases that may contain a mix of:
+This skill is meant for uneven real-world codebases that may contain a mix of:
 
 - Log4j 1.x
 - JUL (`java.util.logging`)
 - partial SLF4J adoption
-- Log4j2 runtime/config usage
+- direct Log4j2 runtime/config code
 - custom appenders/layouts/plugins
-- noisy or brittle test logging setup
+- noisy test logging setup
 - Splunk / ECS / async logging infrastructure
+- generated or module-specific logging config fragments
+
+## Core Stance
+
+### Default rule
+
+> Use plain SLF4J for as much as possible.
+> Only reach for backend-specific support when a task truly requires backend behavior that SLF4J does not model.
+
+### Preferred org-standard pattern
+
+If the repo needs backend-specific logging behavior for tests, runtime level changes, MDC/context plumbing, or similar support work:
+
+1. Prefer importing shared **`components:PRSCommonComponents`** support.
+2. Use **`com.recondotech.prs.utils.LoggingBackendSupport`** as the default support surface.
+3. Only create a repo-local fallback helper if there is a clear blocker to shared adoption.
+
+### PRSCommonComponents consumer modernization note
+
+For repos actively modernizing logging, **`components:PRSCommonComponents`** should be treated as the home of the shared `LoggingBackendSupport` abstraction, not as a logging dependency strategy to inherit blindly.
+
+Important current org-specific caveat:
+
+- `PRSCommonComponents` may intentionally export a legacy-compatible SLF4J-facing dependency posture so older consumers can still upgrade safely
+- that is helpful for compatibility, but it is **not always the intended final dependency shape** for a repo that is actively modernizing its logging stack
+- if provider/binding behavior is not lining up cleanly in the consuming repo, prefer explicitly shaping the consumer POM instead of guessing
+- in practice, that usually means excluding the legacy transitive SLF4J artifacts from `PRSCommonComponents` and adding the consumer repo's intended SLF4J API + matching provider directly
+- ordinary code in the consumer repo should still move toward plain SLF4J callers plus `LoggingBackendSupport` for backend-only operations
+
+### What this skill is not
+
+This skill is not just “replace imports.”
+It should also guide:
+
+- when to stop after caller cleanup
+- when backend abstraction is needed
+- when dependency/provider alignment must be fixed
+- when custom backend plugin code is a legitimate exception
+- how to verify that SLF4J is actually wired to the backend at runtime
 
 ## Target Architecture
 
-### Preferred layering
-
 ```text
-Application / business code
-        ↓
+ordinary callers
+    ↓
 org.slf4j.Logger + LoggerFactory
-        ↓
-(shared backend facade only when needed)
-        ↓
+    ↓
+shared LoggingBackendSupport only when needed
+    ↓
 Log4j2 backend
-        ↓
-Console / File / Splunk / ECS / Async appenders
+    ↓
+console / file / Splunk / ECS / async appenders
 ```
 
-### Guiding rule
+### Good boundary
 
-> If normal logging can be done with SLF4J, use SLF4J directly.
-> If a task would otherwise require importing Log4j2 classes, route it through `LoggingBackendSupport` or an equivalent shared backend-support abstraction.
+- **Ordinary code:** `Logger`, `LoggerFactory`, parameterized SLF4J calls
+- **Backend-support code:** runtime level changes, appender cleanup, MDC/context helpers, backend inspection
+- **True backend exception code:** custom appenders, layouts, filters, plugins, Log4j2-core integrations
 
-## Non-Negotiable Rules
+## Recommended Sequence
 
-1. **Do not leave ordinary application code on Log4j APIs.**
-   - Use `org.slf4j.Logger` and `LoggerFactory` for normal logging.
+Keep this sequence moderately prescriptive, but adapt to the repo.
 
-2. **Do not scatter backend imports through business code.**
-   - Centralize backend-only operations behind a shared abstraction.
-   - Prefer the shared `LoggingBackendSupport` from common components when available.
-   - Only create a repo-local fallback if the shared abstraction is not yet available.
+### 1) Audit before editing
 
-3. **Do not blindly remove compatibility bridges.**
-   - `log4j-1.2-api` and similar bridges stay until code, config, and dependency analysis say they are safe to remove.
+Inspect:
 
-4. **Do not mismatch SLF4J API major versions and providers.**
-   - `slf4j-api` **2.x** requires an SLF4J 2 provider such as `log4j-slf4j2-impl`.
-   - `slf4j-api` **1.7.x** uses the older `log4j-slf4j-impl` binding.
-   - A compile pass is not enough; verify there are no runtime warnings like:
-     - `No SLF4J providers were found`
-     - `Ignoring binding found at ... log4j-slf4j-impl ...`
+- legacy caller APIs (`org.apache.log4j.*`, JUL)
+- direct Log4j2 imports in ordinary code
+- test logging setup debt
+- backend/plugin classes that should remain backend-specific
+- POM dependency/provider state
+- module-local logging config and generated fragments
 
-5. **Do not preserve poor logging style during migration.**
-   - Prefer parameterized logging: `logger.info("value {}", value)`
-   - Prefer `logger.error("message", ex)`
-   - Avoid `System.out.println`, `printStackTrace()`, and `ex.getMessage()` duplication when the throwable is already logged.
+### 2) Normalize ordinary callers to SLF4J
 
-6. **Do not silently hand-wave `fatal`.**
-   - SLF4J has no fatal method.
-   - Replace with `error(...)` deliberately and preserve any alerting/semantic expectations via message conventions or config review.
+Convert normal classes first:
 
-7. **Do not force backend abstraction onto true backend extension code.**
-   - Custom appenders, layouts, filters, plugins, and Log4j2-core integrations are valid exceptions.
-   - Keep those backend-specific, but keep them rare and well-labeled.
+- `org.apache.log4j.Logger` → `org.slf4j.Logger`
+- `Logger.getLogger(...)` → `LoggerFactory.getLogger(...)`
+- `log(Level.X, ...)` → the matching SLF4J level method
+- concatenated log strings → parameterized logging where practical
+- review every `fatal` call for both **log level** and **control-flow semantics**
 
-## Expected Execution Style
+Do not widen the migration yet unless the audit shows a real backend-specific need.
 
-1. Analyze first.
-2. Present findings and migration plan.
-3. Get confirmation before broad edits unless the user explicitly asked for direct application.
-4. Apply staged changes.
-5. Verify both compile/test behavior and runtime logging wiring.
+### 3) Adopt shared backend support if needed
 
-## Detection Phase
+If ordinary code still needs backend-only behavior, prefer:
 
-### 1) Scan source for legacy caller APIs
+- adding/importing **`components:PRSCommonComponents`**
+- routing backend-specific work through **`com.recondotech.prs.utils.LoggingBackendSupport`**
 
-Search Java source first, then tests.
+Typical triggers:
 
-#### Log4j 1.x patterns
+- runtime log-level changes
+- MDC / ThreadContext context management
+- root appender cleanup in tests
+- backend-aware test setup
+
+### 4) Use a repo-local fallback only if blocked
+
+If shared adoption is blocked by dependency constraints, publication lag, or repo policy:
+
+- create a small repo-local `LoggingBackendSupport`-style helper
+- keep the class backend-neutral in name
+- keep its API narrow
+- keep it shaped for later replacement by shared `PRSCommonComponents`
+
+Treat that as an intermediate state, not the ideal end state.
+
+### 5) Handle custom backend/plugin code separately
+
+Do not try to force custom backend extension code into plain SLF4J.
+
+Valid exceptions include:
+
+- `@Plugin` classes
+- `AbstractAppender`
+- custom layouts/filters
+- other `org.apache.logging.log4j.core.*` extension points
+
+These may remain backend-specific while ordinary caller code is cleaned up.
+
+### 6) Then review dependencies and config
+
+Only after code shape is clearer, review:
+
+- SLF4J API/provider compatibility
+- whether the consuming repo should keep or exclude transitive logging artifacts from shared components such as `PRSCommonComponents`
+- bridge necessity (`log4j-1.2-api`, similar artifacts)
+- classpath conflicts
+- module-local `log4j2.xml`
+- included/generated logging resources
+- Splunk / ECS / async logger requirements
+
+## Stop-and-Confirm Checkpoints
+
+Pause and confirm with the user before widening scope when you move from caller cleanup into:
+
+- adding or changing shared/common-component dependencies
+- changing provider/binding artifacts
+- removing compatibility bridges
+- rewriting logging config resources
+- changing behavior that may affect alerting or operational parsing
+
+This branch showed that caller migration, backend abstraction, and dependency cleanup can move at different speeds.
+
+## Detection Guidance
+
+### Legacy caller patterns
+
+Look for:
+
 - `import org.apache.log4j.Logger;`
 - `import org.apache.log4j.Level;`
 - `Logger.getLogger(`
 - `logger.log(Level.`
 - `logger.fatal(`
-- `AppenderSkeleton`
 - `BasicConfigurator`
+- `AppenderSkeleton`
 - `LogManager.getRootLogger().removeAppender(`
-
-#### JUL patterns
 - `import java.util.logging.Logger;`
 - `import java.util.logging.Level;`
-- `Logger.getLogger(`
-- `logger.log(Level.`
 
-#### Already-modern SLF4J patterns
-- `import org.slf4j.Logger;`
-- `import org.slf4j.LoggerFactory;`
-- `LoggerFactory.getLogger(`
+When `fatal` appears, also inspect the surrounding call path:
 
-### 2) Scan for backend leakage into ordinary code
+- is this inside `main(...)`, startup/bootstrap, route initialization, or dependency wiring?
+- does the old code rely on the exception continuing upward to stop the program?
+- is there an outer catch/finally that performs shutdown, cleanup, or process-failure reporting?
 
-Look for direct Log4j2 imports outside explicit backend-support or plugin classes.
+### Direct backend leakage in ordinary code
 
-#### Usually should migrate behind `LoggingBackendSupport`
+Usually migrate these behind `LoggingBackendSupport`:
+
 - `org.apache.logging.log4j.LogManager`
 - `org.apache.logging.log4j.ThreadContext`
 - `org.apache.logging.log4j.core.config.Configurator`
-- `org.apache.logging.log4j.Level`
-- direct root-appender mutation
-- direct runtime logger level changes
+- direct backend level mutation
+- direct root appender mutation
 
-#### Usually acceptable exceptions
+### Legitimate backend exceptions
+
+Usually acceptable when the class is truly backend-specific:
+
 - `@Plugin`
-- `org.apache.logging.log4j.core.appender.AbstractAppender`
-- `org.apache.logging.log4j.core.Layout`
-- `org.apache.logging.log4j.core.Filter`
-- `org.apache.logging.log4j.core.LogEvent`
-- custom layouts / appenders / filters / plugins
+- `AbstractAppender`
+- `Layout`
+- `Filter`
+- `LogEvent`
+- other Log4j2-core extension surfaces
 
-### 3) Scan tests separately
+### Test-specific debt
 
-Tests often hide the ugliest logging debt.
+Tests often preserve the worst legacy patterns. Check for:
 
-Look for:
 - `BasicConfigurator.configure()`
-- legacy `TestLogging.SetupLogging()` / `StopLogging()` style helpers
+- legacy setup helpers
 - direct root-appender cleanup
-- hard-coded logger level mutations
-- custom test appenders
-- tests that assert log output or appender behavior
+- hard-coded backend logger mutation
+- test appenders or custom backend fixtures
 
-### 4) Scan build files and dependency graph
-
-Check `pom.xml` files for:
-- `slf4j-api`
-- `log4j-api`
-- `log4j-core`
-- `log4j-slf4j-impl`
-- `log4j-slf4j2-impl`
-- `log4j-1.2-api`
-- `log4j-layout-template-json`
-- `disruptor`
-- Splunk appender dependencies
-- `slf4j-log4j12`
-- `log4j-over-slf4j`
-- legacy `log4j:log4j`
-- `apache-log4j-extras`
-
-Also inspect:
-- parent POM properties and managed versions
-- exclusions already in place
-- `mvn dependency:tree` output when available
-
-### 5) Scan runtime logging config
-
-Do not stop at Java imports.
+### Build/config review
 
 Inspect:
+
+- child and parent POMs
+- exclusions already in place
+- `mvn dependency:tree` when available
 - module-local `log4j2.xml`
-- included XML fragments
-- generated or unpacked logging resources
-- Splunk / ECS / async logging setup
-- old compatibility flags or properties files that still assume legacy logging behavior
+- XInclude fragments
+- generated/unpacked `log4j2Resources`
+- Splunk / ECS resources and async requirements
 
-### 6) Detect provider/binding safety
+## Migration Rules
 
-If `slf4j-api` is 2.x, confirm the provider is also 2.x-compatible.
+## 1) Ordinary callers stay on SLF4J
 
-Explicitly check test output, startup logs, or surefire reports for warnings like:
-- `No SLF4J providers were found`
-- `Class path contains SLF4J bindings targeting slf4j-api versions 1.7.x or earlier`
-- `Ignoring binding found at ...`
+Preferred field shape:
 
-A migration is **not** complete if the code compiles but SLF4J is effectively running on NOP.
-
-## Findings Report Format
-
-Before editing, produce a summary like:
-
-```text
-=== SLF4J MODERNIZATION ANALYSIS ===
-Repo: <artifactId>
-Java Version: <version>
-
-Caller API Findings:
-  Log4j 1.x usage: <count> files
-  JUL usage: <count> files
-  Direct Log4j2 backend usage in ordinary code: <count> files
-  Intentional Log4j2 plugin/extension code: <count> files
-  Already using SLF4J: <count> files
-
-Style Findings:
-  String concatenation logs: <count>
-  fatal() usages: <count>
-  printStackTrace/System.out logging: <count>
-
-Dependency Findings:
-  slf4j-api: <version or absent>
-  Log4j2 backend: <version or absent>
-  SLF4J provider/binding: <artifact>
-  log4j-1.2-api bridge: <present/absent>
-  Splunk/ECS deps: <summary>
-  Provider mismatch warnings: <yes/no>
-
-Migration Shape:
-  Simple caller conversion only: <yes/no>
-  Shared backend facade required: <yes/no>
-  Custom plugin/appender migration required: <yes/no>
-
-Files likely requiring edits:
-  - ...
-===================================
-```
-
-## Decision Tree
-
-### Case A: Only caller API cleanup is needed
-Use straight SLF4J conversion.
-
-### Case B: Caller code performs backend-only operations
-Use or extend `LoggingBackendSupport`.
-
-Typical triggers:
-- runtime level changes
-- MDC / ThreadContext access
-- root appender inspection/removal
-- backend-specific test bootstrapping
-
-### Case C: Custom Log4j extension code exists
-Treat it as a separate backend migration track.
-
-Examples:
-- custom appenders
-- layouts
-- filters
-- plugins
-
-Do not pretend those can be converted to “plain SLF4J.”
-
-## Migration Phase
-
-## Phase A — Normalize ordinary logger usage to SLF4J
-
-### Pattern 1: Log4j 1.x logger → SLF4J
-
-**Before**
-```java
-import org.apache.log4j.Logger;
-
-public class MyService {
-    private static final Logger logger = Logger.getLogger(MyService.class);
-}
-```
-
-**After**
-```java
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-public class MyService {
-    private static final Logger LOGGER = LoggerFactory.getLogger(MyService.class);
-}
-```
-
-### Pattern 2: JUL logger → SLF4J
-
-**Before**
-```java
-import java.util.logging.Logger;
-import java.util.logging.Level;
-
-private Logger logger = Logger.getLogger(MyDao.class.getName());
-```
-
-**After**
-```java
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-private static final Logger LOGGER = LoggerFactory.getLogger(MyDao.class);
-```
-
-### Pattern 3: `log(Level.X, ...)` → level-specific method
-
-Map carefully:
-- `FINEST` → `trace`
-- `FINER` / `FINE` → `debug`
-- `INFO` → `info`
-- `WARNING` → `warn`
-- `SEVERE` → `error`
-- `FATAL` intent → deliberate `error` policy review
-
-**Before**
-```java
-logger.log(Level.SEVERE, "Error deleting reservation", e);
-logger.log(Level.FINEST, "Reading payer for " + payerId);
-```
-
-**After**
-```java
-LOGGER.error("Error deleting reservation", e);
-LOGGER.trace("Reading payer for {}", payerId);
-```
-
-### Pattern 4: String concatenation → parameterized logging
-
-**Before**
-```java
-logger.info("payerId=" + payerId + ", source=" + source);
-logger.error("Failure: " + e.getMessage(), e);
-```
-
-**After**
-```java
-LOGGER.info("payerId={}, source={}", payerId, source);
-LOGGER.error("Failure processing request", e);
-```
-
-### Pattern 5: Logger field cleanup
-
-Prefer:
 ```java
 private static final Logger LOGGER = LoggerFactory.getLogger(MyClass.class);
 ```
 
-Only keep non-static instance loggers if a framework or class design truly requires it.
+Strong recommendations:
 
-## Phase B — Isolate backend-specific operations behind `LoggingBackendSupport`
+- prefer parameterized logging
+- prefer `logger.error("message", ex)`
+- avoid `ex.getMessage()` duplication when the throwable is already logged
+- convert legacy `fatal` intentionally to an `error`-level policy that preserves operational intent
+- preserve the **original stop/fail-fast behavior** when `fatal` previously marked an unrecoverable startup or bootstrap failure
 
-### When to use the abstraction
+### `fatal` replacement default
 
-Use the shared `LoggingBackendSupport` for anything that would otherwise require Log4j2 imports in ordinary code, especially:
+Because SLF4J has no `fatal` level, the default replacement rule is:
 
-- `Configurator.setLevel(...)`
-- `ThreadContext.put/get/remove(...)`
-- root logger appender cleanup
-- targeted test logging setup
+> If `logger.fatal(...)` represented an unrecoverable path, especially during startup or initialization, do **not** merely downgrade it to `logger.error(...)` and continue.
+> Log at `error`, then rethrow/throw so the original termination behavior is preserved.
 
-### Preferred abstraction shape
+Typical safe patterns:
 
-- small, static, caller-facing facade
-- backend-neutral class name
-- SLF4J used for the facade's own internal logging
-- strict validation on inputs
-- focused unit tests
-- lives in shared common components when possible
+- inner initializer/startup method:
+  - `logger.error("Fatal error initializing ...", ex);`
+  - `throw ex;`
+- when the method cannot throw the same checked exception cleanly:
+  - `logger.error("Fatal error initializing ...", ex);`
+  - `throw new IllegalStateException("Fatal error initializing ...", ex);`
+- top-level `main(...)` with cleanup in `finally`:
+  - let the inner initializer rethrow so the outer boundary remains responsible for final shutdown/cleanup behavior
 
-### Example responsibilities
+Do **not** silently change:
+
+- fail-fast startup into log-and-continue behavior
+- exception propagation into local swallowing
+- outer cleanup/error-reporting paths that depended on the exception escaping
+
+These are strong recommendations, not reasons to block a valid backend plugin class from remaining backend-specific.
+
+## 2) Shared `LoggingBackendSupport` is the default backend path
+
+When backend behavior is needed, prefer shared support rather than inventing local helpers.
+
+Typical responsibilities:
 
 - `setLogLevel(loggerName, levelName)`
 - `getEffectiveLogLevel(loggerName)`
@@ -369,247 +295,146 @@ Use the shared `LoggingBackendSupport` for anything that would otherwise require
 - `getContextValue(key)`
 - `removeContextValue(key)`
 - `removeContextValueIfMatches(key, expectedValue)`
-- `removeRootAppender(name)`
-- `removeKnownTestRootAppenders()`
+- test root-appender cleanup helpers
 
-### Real-world PRS pattern to emulate
+If the shared helper is unavailable, create only the minimum repo-local fallback surface needed.
 
-In `PCS_Eligibility`, the branch introduced `LoggingBackendSupport` to keep:
-- runtime log-level control
-- MDC / ThreadContext access
-- root-appender cleanup for tests
+## 3) Intermediate-state guidance
 
-out of ordinary callers.
+Some repos will be mid-migration.
+That is acceptable temporarily if it is explicit.
 
-This is the correct pattern to generalize.
+Examples of acceptable intermediate states:
 
-### Example: context lifecycle
+- caller code mostly converted to SLF4J while a repo-local helper exists temporarily
+- `log4j-1.2-api` still present because config/dependencies are not yet clean
+- custom plugin code still on Log4j2-core APIs
+- style cleanup not fully complete in backend exception classes
 
-**Before**
-```java
-ThreadContext.put(TRANSACTION_ID, exchangeId);
-...
-if (exchangeId.equals(ThreadContext.get(TRANSACTION_ID))) {
-    ThreadContext.remove(TRANSACTION_ID);
-}
-```
+Document what remains and why. Do not present an intermediate state as the final ideal architecture.
 
-**After**
-```java
-LoggingBackendSupport.putContextValue(TRANSACTION_ID, exchangeId);
-...
-LoggingBackendSupport.removeContextValueIfMatches(TRANSACTION_ID, exchangeId);
-```
+## 4) Do not over-migrate
 
-Note the safety benefit: lifecycle cleanup can be standardized instead of repeated ad hoc.
+If a repo already uses SLF4J correctly in ordinary code and only has a narrow backend-support need:
 
-## Phase C — Migrate tests deliberately
+- do not churn unrelated classes
+- do not create needless abstractions
+- do not remove bridges or bindings without evidence
+- focus on the smallest change that improves architecture and safety
 
-### What to change
+## Dependency Rules
 
-Replace direct legacy logging setup in tests with backend-support calls.
+### Provider compatibility is mandatory
 
-**Preferred test-base pattern**
-```java
-@BeforeClass
-public static void loggingSetUp() {
-    LoggingBackendSupport.setLogLevel("org", "ERROR");
-    LoggingBackendSupport.setLogLevel("com.mchange", "ERROR");
-    LoggingBackendSupport.removeKnownTestRootAppenders();
-}
-```
+You must verify SLF4J API/provider major-version compatibility.
 
-### Test migration rules
+- `slf4j-api` **2.x** requires an SLF4J 2 provider such as `log4j-slf4j2-impl`
+- `slf4j-api` **1.7.x`/`1.6.x** is the era for older bindings such as `slf4j-log4j12` or `log4j-slf4j-impl`, depending on the stack being preserved
 
-- keep tests on SLF4J for ordinary logging
-- use `LoggingBackendSupport` for backend-only test setup
-- preserve tests that validate custom appenders/plugins
-- add focused tests for new facade behavior
-- add at least one smoke path proving SLF4J actually reaches the configured backend
+Do not accept compile success as proof.
+A bad combination can compile while leaving SLF4J effectively unbound at runtime.
 
-### Must-have test verification
+For repos actively modernizing around shared `PRSCommonComponents` support, do not assume the shared component's transitive SLF4J artifacts are the right final answer for the consumer. If the consumer is moving to a clean SLF4J 2 + Log4j2 provider shape, explicitly exclude the legacy transitive SLF4J artifacts from `PRSCommonComponents` and add the intended API/provider pair directly in the consumer repo.
 
-Do not stop at backend-only unit tests.
+### Bridge removal is evidence-based
 
-Also verify:
-- an SLF4J logger is not NOP
-- provider warnings are absent
-- configured appenders/layouts still receive events
+For repos actively modernizing logging, the normal goal is to remove `log4j-1.2-api` rather than keep it indefinitely.
+Do not remove it until all of the following are true:
 
-## Phase D — Handle custom backend/plugin code as exceptions
+1. no direct `org.apache.log4j.*` usage remains
+2. no legacy test/helper bootstrap still depends on Log4j 1 behavior
+3. no config/property compatibility behavior still depends on it
+4. dependency-tree review shows no remaining need
+5. smoke/startup verification stays clean after removal
 
-### Keep backend-specific when the code truly is backend-specific
+Report the bridge decision explicitly as kept or removed, with reasons.
 
-Examples:
-- Log4j2 `@Plugin` appenders
-- classes extending `AbstractAppender`
-- custom layouts or filters
+### Keep classpath intent clear
 
-### Migration expectation for custom appenders
+Review for:
 
-A Log4j 1.x custom appender may require a true API rewrite, for example:
-- `AppenderSkeleton` → `AbstractAppender`
-- `LoggingEvent` → `LogEvent`
-- plugin annotations (`@Plugin`, `@PluginFactory`)
-- updated layout/event serialization behavior
+- multiple competing bindings/providers
+- stale transitive logging artifacts
+- exclusions that still matter
+- parent-managed versions vs child overrides
+- shared-component version ownership
 
-### Exception rule
+## Verification Rules
 
-Backend plugin code may import `org.apache.logging.log4j.core.*` directly.
-That is acceptable **only** for explicit plugin/extension code.
+### Backend-helper unit tests are not enough
 
-## Phase E — Update dependencies safely
+A helper test may pass even if SLF4J is misbound or running on NOP.
 
-### Preferred dependency strategy
+Also require at least one **real SLF4J path** that proves:
 
-1. Reuse parent/BOM-managed versions when the repo already has a standard.
-2. If versions are local, align all logging artifacts intentionally.
-3. Keep the API/provider majors compatible.
-4. Do not leave multiple competing bindings/providers on the classpath.
+- an SLF4J logger is active
+- the configured provider is actually loaded
+- the backend/appender path receives events as expected
 
-### Safe dependency patterns
+### Verify runtime/provider wiring
 
-#### If using SLF4J 2.x
-Use a 2.x provider, for example:
-```xml
-<dependency>
-    <groupId>org.slf4j</groupId>
-    <artifactId>slf4j-api</artifactId>
-    <version>${slf4j.version}</version>
-</dependency>
-<dependency>
-    <groupId>org.apache.logging.log4j</groupId>
-    <artifactId>log4j-api</artifactId>
-    <version>${log4j2.version}</version>
-</dependency>
-<dependency>
-    <groupId>org.apache.logging.log4j</groupId>
-    <artifactId>log4j-core</artifactId>
-    <version>${log4j2.version}</version>
-</dependency>
-<dependency>
-    <groupId>org.apache.logging.log4j</groupId>
-    <artifactId>log4j-slf4j2-impl</artifactId>
-    <version>${log4j2.version}</version>
-</dependency>
-```
+Check for warnings such as:
 
-#### If temporarily constrained to SLF4J 1.7.x
-Use the older binding only with 1.7.x:
-```xml
-<dependency>
-    <groupId>org.apache.logging.log4j</groupId>
-    <artifactId>log4j-slf4j-impl</artifactId>
-    <version>${log4j2.version}</version>
-</dependency>
-```
+- `No SLF4J providers were found`
+- `Ignoring binding found at ...`
+- provider/binding mismatch warnings
 
-### Common supporting dependencies
-Add only when justified by the repo's config/runtime needs:
-- `log4j-layout-template-json`
-- `disruptor`
-- Splunk appender dependencies
+Treat those as migration failures or explicit follow-up items, not harmless noise.
 
-### Compatibility bridge rule: `log4j-1.2-api`
+### Verify module config, not just Java code
 
-Keep it until **all** of the following are true:
+Where applicable, inspect:
 
-1. No direct `org.apache.log4j.*` usage remains.
-2. No legacy helper/test bootstrap still expects Log4j 1 behavior.
-3. No config/property flags still rely on compatibility behavior.
-4. Dependency-tree review shows no remaining need.
-5. Smoke tests and startup logs remain clean after removal.
+- module-local `log4j2.xml`
+- generated/unpacked resources
+- XInclude fragments
+- Splunk/ECS layouts
+- async logger/appender dependencies
 
-Then report either:
+### Verify operational behaviors still work
 
-```text
-log4j-1.2-api: REMOVED (code, config, dependency, and runtime checks passed)
-```
+When relevant, confirm:
 
-or
+- runtime log-level changes still work
+- MDC/context lifecycle still works
+- noisy test logging suppression still works
+- custom appenders/plugins still load and function
+- startup/init failure paths that previously used `fatal` still stop the program or propagate failure as intended
 
-```text
-log4j-1.2-api: KEPT as compatibility bridge (still required by code/config/dependencies)
-```
-
-## Phase F — Treat configuration as part of the migration
-
-Inspect module-local logging config before assuming anything.
-
-Pay special attention to:
-- XInclude fragment layouts
-- generated `log4j2Resources`
-- Splunk wiring
-- ECS JSON layout resources
-- async logger/appender requirements
-- module-specific logger levels
-
-If a repo already uses a separate skill for Splunk/ECS layout or config validation, do not duplicate that work here; coordinate with that skill.
-
-## Lightweight Implementation Checklist
-
-- [ ] inventory legacy caller APIs
-- [ ] inventory direct backend usage in ordinary code
-- [ ] classify intentional plugin/extension classes
-- [ ] pick SLF4J API version and matching provider intentionally
-- [ ] normalize ordinary classes to `Logger` + `LoggerFactory`
-- [ ] migrate backend-only operations behind `LoggingBackendSupport`
-- [ ] migrate test setup and noisy test logging cleanup
-- [ ] preserve or rewrite custom appender/plugin code as backend-specific code
-- [ ] defer bridge removal until criteria are met
-- [ ] review module logging config and generated resources
-
-## Lightweight Verification Checklist
-
-- [ ] no ordinary application classes still import `org.apache.log4j.*`
-- [ ] no ordinary application classes import Log4j2 backend APIs directly
-- [ ] intentional exceptions are limited to backend support and plugin code
-- [ ] SLF4J provider/binding matches API major version
-- [ ] no `No SLF4J providers were found` or ignored-binding warnings
-- [ ] runtime log-level controls still work
-- [ ] MDC/context lifecycle still works
-- [ ] test bootstrap still suppresses noisy legacy appenders where needed
-- [ ] custom appenders/plugins still load and function
-- [ ] compile/tests or targeted smoke verification pass
-
-## PRS Examples to Carry Forward
-
-Use these repo patterns as models, not as hard-coded assumptions. See the companion `EXAMPLES.md` in this skill folder for copyable examples.
-
-1. **Shared backend facade pattern**
-   - `prs/src/main/java/com/recondotech/prs/utils/logging/LoggingBackendSupport.java`
-   - demonstrates how to isolate Log4j2-only operations
-
-2. **MDC/context lifecycle migration**
-   - `prs/src/main/java/com/recondotech/prs/utils/interceptor/camel/CamelEventNotifier.java`
-   - shows context set/cleanup routed through the abstraction
-
-3. **Test setup cleanup**
-   - `prs/src/test/java/com/recondotech/prs/test/util/LoggingBase.java`
-   - shows noisy dependency logging and appender cleanup moved behind the abstraction
-
-4. **Intentional backend plugin exception**
-   - `prs/src/main/java/com/recondotech/prs/testAppender.java`
-   - shows a true backend-specific appender migration that should remain Log4j2-core code
-
-5. **Important anti-example**
-   - this branch paired `slf4j-api` 2.x with `log4j-slf4j-impl`, which can produce ignored-binding / no-provider warnings
-   - future migrations must explicitly prevent that mismatch
-
-## Output Expectations
+## Findings / Output Expectations
 
 When using this skill, produce:
 
 1. **Analysis summary**
-2. **Planned changes grouped by caller code / backend abstraction / tests / dependencies / config**
-3. **Explicit bridge decision**
-4. **Explicit provider-compatibility decision**
+2. **Planned changes grouped by caller code / backend support / tests / dependencies / config**
+3. **Explicit provider-compatibility decision**
+4. **Explicit bridge decision**
 5. **Verification results and remaining risks**
+
+## Companion Docs
+
+Use companion docs in this skill folder for sharper detail:
+
+- `EXAMPLES.md` — copyable migration patterns
+- `PITFALLS.md` — concise real-world mistakes and anti-patterns
+
+## PRS-derived lessons worth generalizing
+
+These repo findings should shape the skill without turning it into a repo-specific recipe:
+
+- broad caller migration to SLF4J can and should be separated from backend abstraction work
+- shared `PRSCommonComponents` `LoggingBackendSupport` is the preferred org-standard end state
+- repo-local helpers are a fallback, not the target
+- custom backend appender/plugin code is a real exception, not a failed migration
+- provider/binding mismatch can survive compilation and only show up in test/runtime output
+- backend-helper tests alone do not prove SLF4J is wired correctly
 
 ## Constraints
 
 - Preserve business behavior.
-- Preserve logger intent and levels unless there is a clear defect.
-- Do not silently rewrite custom backend extension code into something fake or generic.
+- Preserve logger intent unless there is a clear defect.
+- Do not silently erase `fatal` semantics without reviewing operational expectations.
+- Default expectation: replace unrecoverable `fatal` paths with `error` + rethrow/throw so the original failure behavior is preserved.
+- Do not rewrite true backend extension code into fake generic wrappers.
 - Do not assume one module's logging config matches another.
 - Do not claim success until runtime/provider wiring is verified.
