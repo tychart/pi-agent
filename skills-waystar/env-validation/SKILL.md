@@ -72,6 +72,38 @@ Use this skill when a repo needs any of the following:
 - Spring Boot wiring for early env validation
 - service-specific declaration of env requirements while keeping shared validator behavior centralized
 
+## Adoption Posture
+
+By default, treat env-validation adoption as a **phased, low-risk cleanup**, not a mandate to force every legacy config surface onto env vars immediately.
+
+Preferred default posture:
+
+1. take the easy env-backed wins now
+   - shared env validation
+   - `<artifactId>.env.example`
+   - env-backed logging/observability config
+   - Spring-managed config that already supports placeholders cleanly
+2. avoid bespoke repo-local bootstrap/adaptation code unless the user explicitly wants that now
+3. defer harder legacy config families until there is either:
+   - shared `PRSCommonComponents` support, or
+   - an approved deeper refactor
+
+### Typical “easy now” vs “defer for later” split
+
+Usually safe to do now:
+
+- shared validator wiring
+- warning/critical env classification
+- operator-facing env example files
+- Spring bean placeholder updates where Spring is the final consumer
+
+Usually better to defer unless the user asks for deeper work:
+
+- large `PRSProperties`-driven credential migrations across many modules
+- stubborn legacy XML consumers that do not cleanly resolve env vars
+- migrations that would require many scattered direct `System.getenv()` reads
+- repo-local one-off env bootstrap classes that would be hard to standardize later
+
 ## Phase 1: Inspect the Consuming Repo
 
 Before making changes, inspect:
@@ -88,8 +120,10 @@ Before making changes, inspect:
    - `.env.example` or `<artifactId>.env.example`
    - startup/deployment docs describing how env vars are exported
 4. where env-dependent beans initialize
+5. which settings are easy wins now versus legacy holdovers better deferred for a shared follow-up
 
 Always ask for clarification if the startup style or desired integration point is unclear.
+Do not assume the user wants a broad all-at-once migration when a smaller phased pass would be cleaner.
 
 ## Phase 2: Adopt, Do Not Recreate
 
@@ -273,6 +307,11 @@ You may still need to update:
 - `log4j2.xml` env-backed properties
 - XML or Java config for env-dependent infrastructure
 
+Small phased-rollout example:
+
+- **Do now:** Splunk/logging env vars, shared validation, env example file, Spring-friendly placeholder cleanup
+- **Defer for later:** broad legacy credential migration trapped behind `PRSProperties` or non-cooperative XML consumers unless the user explicitly approves deeper work
+
 If the deployment model uses a host or service startup script to source env files before Tomcat or Java starts, update those docs/scripts to use the artifact-specific env filename consistently.
 
 But keep those concerns separate from the shared validator runtime.
@@ -318,4 +357,5 @@ When using this skill, the agent should usually produce:
 - Do not assume Splunk is the only use case
 - Do not couple the validator runtime to `log4j2.xml` mutation or `.env.example` generation
 - Do not guess startup ordering in ambiguous repos; inspect and ask for clarification
+- Do not turn a straightforward env-validation request into a broad legacy-config refactor unless the user clearly wants that
 - If the consuming repo cannot yet import `PRSCommonComponents`, explain the dependency blocker clearly instead of falling back to code duplication without approval

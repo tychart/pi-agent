@@ -69,112 +69,38 @@ JsonTemplateLayout → EcsLayout.json
 
 ## Skill Behavior Rules
 
-1. Generate or update a complete `EcsLayout.json` using the **exact required baseline layout below** for logs sent to Splunk.
-2. The baseline layout is the standard contract. Repo-specific fields may be added only as additive fields that do not remove or rename the required baseline fields unless the user explicitly approves a contract change.
-3. Auto-detect project/service names from build metadata when available:
+1. Generate or update `EcsLayout.json` based on the repo's intended canonical contract for logs sent to Splunk.
+2. When the repo is part of the PCS family and already uses `/home/tychart/projects/PCS_Log4j2SplunkAppender`, prefer that shared repo's current `src/main/resources/EcsLayout.json` as the canonical layout instead of copying an inline template into the skill.
+3. For those PCS-family consumers, treat `EcsLayout.json` and `log4j2Resources/**` as shared build inputs owned by `components:log4j2-splunk-appender`, not as hand-maintained source files in the consuming repo.
+4. Default PCS-family build pattern: unpack shared logging resources into `${project.build.directory}/generated-resources/log4j2-shared` during `generate-resources`, then add that directory as a Maven resource root.
+5. Repo-specific fields may be added only as additive fields that do not remove or rename canonical shared fields unless the user explicitly approves a contract change.
+6. Auto-detect project/service names from build metadata when available:
    - use `pom.xml` for Maven repos
    - use Gradle metadata when applicable
    - otherwise inspect the repo name and existing deploy/config docs
    - convert camelCase / PascalCase / mixed names to kebab-case when needed
    - strip technical suffixes such as `Api`, `Service`, or `Application` only when the repo already uses the shorter operational name
-4. Preserve all existing appenders, logger levels, additivity settings, async/logger routing, and non-Splunk log destinations in `log4j2.xml`.
-5. Preserve existing console/file patterns and rolling file behavior.
-6. If the repo already uses the internal `components:log4j2-splunk-appender`, do not reintroduce legacy official-library wiring such as `packages="com.splunk.logging"` or old `includeMDC`/`type="raw"` attributes.
-7. Prefer `org.slf4j.MDC` in ordinary application code. Only use Log4j2 `ThreadContext` directly when the repo already does so or a backend-specific need is explicit.
-8. Keep test logging local-only; do not make tests depend on Splunk infrastructure.
-9. Keep `EcsLayout.json` valid JSON. Do not insert comments into the JSON file itself.
-10. When adding `SPLUNK_*` env vars, strongly prefer the shared `env-validation` skill instead of generating a repo-local validator or ad hoc secret-loading logic.
-11. After the Splunk logging files/config are in place, direct the user/agent to run the `env-validation` skill so the required Splunk credentials and related env vars are wired into the repo's real runtime configuration model and validated at startup.
-12. If the repo externalizes logging config or ships deploy-time config bundles, update packaging/docs so `log4j2.xml`, `EcsLayout.json`, any generated `log4j2Resources/**`, and the env example land where operators expect them.
-13. When a repo consumes shared `components:log4j2-splunk-appender` resources, prefer a consumer-owned top-level `log4j2.xml` plus generated/unpacked shared resources rather than keeping divergent repo-local copies of `EcsLayout.json` or shared fragments.
-14. Keep the instructions high-level enough to apply across many legacy repos, but specific enough to give an agent exact file targets, exact appender structure, and exact JSON layout content.
+7. Preserve all existing appenders, logger levels, additivity settings, async/logger routing, and non-Splunk log destinations in `log4j2.xml`.
+8. Preserve existing console/file patterns and rolling file behavior.
+9. If the repo already uses the internal `components:log4j2-splunk-appender`, do not reintroduce legacy official-library wiring such as `packages="com.splunk.logging"` or old `includeMDC`/`type="raw"` attributes.
+10. Prefer `org.slf4j.MDC` in ordinary application code. Only use Log4j2 `ThreadContext` directly when the repo already does so or a backend-specific need is explicit.
+11. Keep test logging local-only; do not make tests depend on Splunk infrastructure.
+12. Keep `EcsLayout.json` valid JSON. Do not insert comments into the JSON file itself.
+13. When adding `SPLUNK_*` env vars, strongly prefer the shared `env-validation` skill instead of generating a repo-local validator or ad hoc secret-loading logic.
+14. After the Splunk logging files/config are in place, direct the user/agent to run the `env-validation` skill so the required Splunk credentials and related env vars are wired into the repo's real runtime configuration model and validated at startup.
+15. If the repo externalizes logging config or ships deploy-time config bundles, update packaging/docs so `log4j2.xml`, `EcsLayout.json`, any generated `log4j2Resources/**`, and the env example land where operators expect them.
+16. When a repo consumes shared `components:log4j2-splunk-appender` resources, prefer a consumer-owned top-level `log4j2.xml` plus generated/unpacked shared resources rather than keeping divergent repo-local copies of `EcsLayout.json` or shared fragments.
+17. In this org's current pattern, `/home/tychart/projects/PCS_Log4j2SplunkAppender` is the shared owner of `EcsLayout.json` for many consuming repos. When the user wants that shared artifact to remain the single source of truth, update consumers to adopt the shared layout instead of forking repo-local copies.
+18. For the generated-resources pattern, normal `target/` ignore rules are sufficient; do not re-create the old pattern of unpacking generated shared logging resources into `src/main/resources` just so they can be gitignored.
+19. Keep the instructions high-level enough to apply across many legacy repos, but specific enough to give an agent exact file targets, exact appender structure, exact integration steps, and explicit verification work.
 
-## Phase 1: ECS Layout Template Generation
+## Phase 1: ECS Layout Contract Review
 
-Generate or update `EcsLayout.json` using this **required baseline content**, with the project/service names auto-detected:
+Generate or update `EcsLayout.json` by first identifying the intended canonical contract:
 
-```json
-{
-  "dateTime": {
-    "utc": {
-      "$resolver": "timestamp",
-      "pattern": {
-        "format": "MM/dd/yyyy HH:mm:ss.SSS'Z'",
-        "timeZone": "UTC"
-      }
-    },
-    "louisville": {
-      "$resolver": "timestamp",
-      "pattern": {
-        "format": "MM/dd/yyyy hh:mm:ss.SSS a",
-        "timeZone": "America/Louisville"
-      }
-    }
-  },
-  "severity": {
-    "$resolver": "level",
-    "field": "name"
-  },
-  "logger": {
-    "$resolver": "logger"
-  },
-  "thread": {
-    "$resolver": "thread"
-  },
-  "message": {
-    "$resolver": "message",
-    "stringified": true
-  },
-  "file": {
-    "$resolver": "source",
-    "field": "fileName"
-  },
-  "method": {
-    "$resolver": "source",
-    "field": "methodName"
-  },
-  "lineNumber": {
-    "$resolver": "source",
-    "field": "lineNumber"
-  },
-  "exception": {
-    "exceptionClass": {
-      "$resolver": "exception",
-      "field": "className"
-    },
-    "exceptionMessage": {
-      "$resolver": "exception",
-      "field": "message"
-    },
-    "stackTrace": {
-      "$resolver": "exception",
-      "field": "stackTrace",
-      "stackTrace": {
-        "stringified": true
-      }
-    }
-  },
-  "sourceHost": "${sourceHost}",
-  "projectName": "<AUTO-DETECTED>",
-  "serviceName": "${serviceName}",
-  "environment": {
-    "$resolver": "mdc",
-    "key": "environment"
-  },
-  "requestPath": {
-    "$resolver": "mdc",
-    "key": "requestPath"
-  },
-  "correlationId": {
-    "$resolver": "mdc",
-    "key": "correlationId"
-  },
-  "httpStatus": {
-    "$resolver": "mdc",
-    "key": "httpStatus"
-  }
-}
-```
+- for PCS-family repos already standardized on `/home/tychart/projects/PCS_Log4j2SplunkAppender`, read and reuse that shared repo's current `src/main/resources/EcsLayout.json`, and expect the consuming repo's effective copy to be unpacked from the shared artifact into `${project.build.directory}/generated-resources/log4j2-shared`
+- for repos with an explicitly different approved contract, read the existing shipped layout and preserve compatibility unless the user approves a schema change
+- if there is no established contract yet, derive a new layout from the repo's actual operational needs and document the chosen fields before applying them
 
 ### Standardization rule
 
@@ -185,12 +111,14 @@ If the repo already has a shipped `EcsLayout.json`, inspect:
 - any tests that assert emitted JSON
 - any dashboards/alerts that may depend on the current shape
 
-The default goal of this skill is to move repos toward the baseline layout above.
+The default goal of this skill is to move repos toward an explicitly identified canonical layout rather than embedding a stale hardcoded JSON example inside the skill.
+
+Org-specific note: if the repo is part of the PCS family and already consumes `/home/tychart/projects/PCS_Log4j2SplunkAppender`, treat that shared repo's `EcsLayout.json` as the canonical contract unless the user explicitly wants to break away from the shared standard.
 
 Before removing or renaming existing fields, confirm whether downstream Splunk queries, dashboards, alerts, or field extractions depend on them.
 If needed:
 
-- keep legacy fields temporarily alongside the required baseline fields
+- keep legacy fields temporarily alongside the canonical shared fields
 - add repo-specific fields additively
 - document any temporary compatibility fields clearly in the plan
 
@@ -287,10 +215,65 @@ When the consuming repo should use the shared-resource composition model instead
 </Loggers>
 ```
 
-5. Add the documented Maven unpack pattern so shared `log4j2Resources/**` and `EcsLayout.json` are generated into `src/main/resources` during the build.
-6. If the repo uses `xi:include`, keep `xercesImpl` available in the consumer repo.
-7. If `src/main/resources` is part of the shipped runtime config surface, ensure Maven resource copying uses a recursive include pattern such as `**/*`, not a top-level `*`, so nested `log4j2Resources/**` actually reach `target/classes` and packaged artifacts.
-8. If the user wants the shared artifact to be the single source of truth, remove tracked repo-local ownership of generated `EcsLayout.json` / shared fragments and ignore the generated copies in git.
+5. Unpack shared `log4j2Resources/**` and `EcsLayout.json` into `${project.build.directory}/generated-resources/log4j2-shared` during `generate-resources`.
+
+```xml
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-dependency-plugin</artifactId>
+    <version>3.1.1</version>
+    <executions>
+        <execution>
+            <id>unpack-log4j2-splunk-resources</id>
+            <phase>generate-resources</phase>
+            <goals>
+                <goal>unpack</goal>
+            </goals>
+            <configuration>
+                <artifactItems>
+                    <artifactItem>
+                        <groupId>components</groupId>
+                        <artifactId>log4j2-splunk-appender</artifactId>
+                        <version>${log4j2-splunk-appender.version}</version>
+                        <type>jar</type>
+                        <excludes>META-INF/,com/</excludes>
+                    </artifactItem>
+                </artifactItems>
+                <outputDirectory>${project.build.directory}/generated-resources/log4j2-shared</outputDirectory>
+                <overWriteReleases>true</overWriteReleases>
+                <overWriteSnapshots>true</overWriteSnapshots>
+                <overWriteIfNewer>true</overWriteIfNewer>
+            </configuration>
+        </execution>
+    </executions>
+</plugin>
+```
+
+6. Add that generated directory as a Maven resource root so the shared files reach `target/classes` and final packaged artifacts.
+
+```xml
+<resources>
+    <resource>
+        <directory>src/main/resources</directory>
+        <filtering>false</filtering>
+        <includes>
+            <include>**/*</include>
+        </includes>
+    </resource>
+    <resource>
+        <directory>${project.build.directory}/generated-resources/log4j2-shared</directory>
+        <filtering>false</filtering>
+        <includes>
+            <include>**/*</include>
+        </includes>
+    </resource>
+</resources>
+```
+
+7. If the repo uses `xi:include`, keep `xercesImpl` available in the consumer repo.
+8. For PCS-family consumers using `/home/tychart/projects/PCS_Log4j2SplunkAppender`, the default recommendation is that the shared artifact owns `EcsLayout.json` and shared `log4j2Resources/**`, while each consuming repo owns only its top-level `log4j2.xml`, logger policy, and deployment/runtime wiring.
+9. Remove tracked repo-local ownership of `EcsLayout.json` / `log4j2Resources/**` when the shared artifact is intended to be the single source of truth.
+10. Rely on the normal `target/` ignore rule rather than adding special `.gitignore` entries for generated shared logging resources.
 
 ### Step 3: Add the Splunk appender
 
@@ -370,7 +353,7 @@ Typical follow-through:
 - ensure `log4j2.xml` and `EcsLayout.json` are shipped where operators expect them
 - if config bundles already include logging files, add `EcsLayout.json` there too
 - if shared-resource composition is used, also ship generated `log4j2Resources/**` anywhere the runtime expects externalized logging resources beside `log4j2.xml`
-- if shared resources are unpacked into `src/main/resources`, verify the build actually copies nested paths like `log4j2Resources/**` into `target/classes`, the main artifact, and any deployment ZIP/tar bundles
+- if shared resources are unpacked into `${project.build.directory}/generated-resources/...`, verify the build actually copies nested paths like `log4j2Resources/**` into `target/classes`, the main artifact, and any deployment ZIP/tar bundles
 - if runtime env vars are documented elsewhere, keep the logging docs aligned with that source of truth
 - if the shared layout changes field names or nesting, explicitly document Splunk search/dashboard impacts instead of silently swapping the contract
 
@@ -520,27 +503,51 @@ But only do this when:
 - the repo actually has that identifier at a stable processing boundary, and
 - the layout/docs are intentionally updated to emit and describe `correlationId`
 
+## Legacy PCS upgrade checklist
+
+Use this when migrating an older PCS-family repo that still unpacks shared logging resources into `src/main/resources`.
+
+### Short checklist
+
+1. Keep the tracked top-level `src/main/resources/log4j2.xml`.
+2. Remove tracked repo-local `EcsLayout.json` and `log4j2Resources/**` if they are meant to come from the shared artifact.
+3. Change the unpack destination to `${project.build.directory}/generated-resources/log4j2-shared`.
+4. Add that generated directory as a Maven resource root.
+5. Keep the shared XInclude paths unchanged in `log4j2.xml`.
+6. Verify `target/classes`, the main artifact, and any externalized config bundle outputs.
+7. Document any downstream Splunk field-shape impact if the repo is also returning from a local layout fork to the shared canonical layout.
+
+### Detailed migration cautions
+
+- If the repo externalizes `log4j2.xml` outside the application artifact, make sure the referenced `log4j2Resources/**` files are shipped beside it anywhere runtime XInclude resolution expects them.
+- If the repo uses Maven resource includes, prefer `**/*` over `*` so nested `log4j2Resources/**` paths are not dropped.
+- If the repo has assembly descriptors or ZIP packaging, inspect the final built outputs instead of assuming classpath resources alone are enough.
+- Normal `target/` ignore rules should cover generated shared resources; do not recreate the old source-tree mutation pattern just to satisfy gitignore.
+
 ## Output Format
 
 1. **Plan phase**
-   - show the proposed `EcsLayout.json` shape
-   - list `log4j2.xml` changes
+   - identify whether the repo should use the shared PCS canonical layout or a repo-specific approved contract
+   - show the proposed `log4j2.xml` changes
+   - show the Maven unpack/resources changes when shared artifact composition is used
    - show the env example file location/content
-   - call out any packaging/doc follow-through
+   - call out packaging/doc follow-through
    - explicitly state that `env-validation` should be run after Splunk setup is applied
 2. **Confirmation**
    - wait for user approval before applying broad changes
 3. **Apply phase**
-   - write `EcsLayout.json`
    - update `log4j2.xml`
+   - update Maven unpack/resources configuration when shared artifacts are involved
+   - write or reuse `EcsLayout.json` according to the chosen ownership model
    - create/update the env example file
    - update MDC wiring if needed
    - update packaging/docs if the runtime model requires it
 4. **Follow-up phase**
    - direct the user/agent to run the `env-validation` skill so Splunk credential/env-var wiring and startup validation are handled through the shared pattern
 5. **Verify phase**
-   - confirm `EcsLayout.json` is syntactically valid JSON
+   - confirm `EcsLayout.json` is syntactically valid JSON when locally owned or generated as expected when shared-owned
    - confirm `log4j2.xml` is well-formed XML
+   - confirm generated shared resources reach `target/classes` and final packaged outputs when the shared artifact pattern is used
    - confirm test logging remains local-only
 
 ## Constraints
@@ -555,6 +562,9 @@ But only do this when:
 - Do **not** generate a repo-local env validator by default; strongly reference and defer to the `env-validation` skill / shared PRSCommonComponents pattern when env validation is needed.
 - Do **not** reintroduce legacy official Splunk Java logging attributes when the repo already uses the internal `log4j2-splunk-appender`.
 - Do **not** keep a hand-maintained repo-local `EcsLayout.json` or shared fragment copy when the user wants the shared artifact to be the single source of truth; generate/unpack it instead.
+- For PCS-family repos that standardize on `/home/tychart/projects/PCS_Log4j2SplunkAppender`, default to the shared `EcsLayout.json` there instead of inventing a per-repo layout fork unless the user explicitly approves divergence.
+- Do **not** unpack generated shared logging resources into `src/main/resources` as the default PCS pattern; use `${project.build.directory}/generated-resources/log4j2-shared` and a Maven resource root instead.
+- Do **not** leave autogenerated shared resources tracked in git unless the user explicitly wants to version those generated outputs.
 - Do **not** silently break downstream Splunk queries, dashboards, or alerts when standardizing old layouts; preserve compatibility fields temporarily when needed and document any unavoidable field-shape changes.
 - Do **not** add `correlationId` or environment mappings to docs/layouts unless the consuming repo actually uses them.
 - Preserve `batch_size_count="1"` and `locationInfoEnabled="true"` for the main request/error Splunk appender unless the user explicitly wants different behavior.
