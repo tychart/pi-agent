@@ -124,6 +124,7 @@ Typical triggers:
 - MDC / ThreadContext context management
 - root appender cleanup in tests
 - backend-aware test setup
+- direct backend shutdown or broad context-clear calls that should move behind the shared helper
 
 ### 4) Use a repo-local fallback only if blocked
 
@@ -205,6 +206,8 @@ Usually migrate these behind `LoggingBackendSupport`:
 - `org.apache.logging.log4j.core.config.Configurator`
 - direct backend level mutation
 - direct root appender mutation
+- direct `LogManager.shutdown()` calls when a shared shutdown wrapper is appropriate
+- direct `ThreadContext.clearAll()` calls when a shared full-context cleanup helper is appropriate
 
 ### Legitimate backend exceptions
 
@@ -291,11 +294,22 @@ Typical responsibilities:
 
 - `setLogLevel(loggerName, levelName)`
 - `getEffectiveLogLevel(loggerName)`
+- `shutdownLogging()`
 - `putContextValue(key, value)`
+- `putContextValues(values)`
 - `getContextValue(key)`
+- `clearContext()`
 - `removeContextValue(key)`
 - `removeContextValueIfMatches(key, expectedValue)`
 - test root-appender cleanup helpers
+
+Tiny org-specific example when replacing direct backend calls:
+
+```java
+LoggingBackendSupport.shutdownLogging();
+LoggingBackendSupport.clearContext();
+LoggingBackendSupport.putContextValues(contextValues);
+```
 
 If the shared helper is unavailable, create only the minimum repo-local fallback surface needed.
 
