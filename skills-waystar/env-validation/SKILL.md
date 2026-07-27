@@ -15,6 +15,7 @@ This skill helps an agent:
 - wire the shared validator into service startup
 - declare service-specific warning and critical environment variables
 - preserve the deployment model where runtime startup exports env vars and Java reads `System.getenv()`
+- selectively env-back `PRSProperties`-consumed settings that should not live as shared committed defaults
 - migrate repos away from copied `EnvironmentConfigurationValidator.java` implementations
 
 ## Source of Truth
@@ -35,6 +36,7 @@ Primary classes:
 - `src/main/java/com/recondotech/prs/config/env/spring/EnvironmentValidationStartupHook.java`
 - `src/main/java/com/recondotech/prs/config/env/spring/EnvironmentValidationRequestFactoryBean.java`
 - `src/main/java/com/recondotech/prs/config/env/spring/EnvironmentValidationConfiguration.java`
+- `src/main/java/com/recondotech/prs/utils/PRSProperties.java`
 
 If there is any uncertainty about the intended API or behavior, read those files from the PRSCommonComponents repo before editing the consuming repo.
 
@@ -61,6 +63,33 @@ The shared implementation already provides these semantics:
 
 Do not reimplement these semantics locally unless the user explicitly asks for a fork.
 
+## Shared `PRSProperties` Runtime Option
+
+`PRSCommonComponents` now also provides a shared runtime path for selected legacy property-file values that are consumed through `PRSProperties`.
+
+Supported placeholder forms in committed property files include:
+
+- `${env:NAME}`
+- `${env:NAME:-default}`
+- `${sys:NAME}`
+- `${sys:NAME:-default}`
+
+Current shared behavior:
+
+- placeholder resolution happens at `PRSProperties` load/reload time
+- there is no per-`getProperty(...)` placeholder parsing cost
+- blank env/sys values count as missing for fallback purposes
+- unresolved placeholders without a value/default remain literal strings
+- `setProperty(...)` remains literal in the current shared contract
+
+Use this capability selectively. It is a good fit for values that are:
+
+- credentials or secrets
+- instance-specific identifiers
+- per-environment or per-node endpoints/settings that should not be shared blindly across cluster members
+
+It is usually **not** the right move to env-back every value in `Component.properties` or related property files. Stable, non-sensitive defaults that belong in source control should usually remain committed properties.
+
 ## When To Use This Skill
 
 Use this skill when a repo needs any of the following:
@@ -71,6 +100,7 @@ Use this skill when a repo needs any of the following:
 - legacy Spring XML wiring for env validation
 - Spring Boot wiring for early env validation
 - service-specific declaration of env requirements while keeping shared validator behavior centralized
+- selective env-backing of `PRSProperties`-consumed sensitive or deployment-specific values
 
 ## Adoption Posture
 
@@ -83,6 +113,7 @@ Preferred default posture:
    - `<artifactId>.env.example`
    - env-backed logging/observability config
    - Spring-managed config that already supports placeholders cleanly
+   - selective `${env:...}` / `${sys:...}` adoption for `PRSProperties`-consumed sensitive or deployment-specific values
 2. avoid bespoke repo-local bootstrap/adaptation code unless the user explicitly wants that now
 3. defer harder legacy config families until there is either:
    - shared `PRSCommonComponents` support, or
@@ -96,10 +127,11 @@ Usually safe to do now:
 - warning/critical env classification
 - operator-facing env example files
 - Spring bean placeholder updates where Spring is the final consumer
+- selective `PRSProperties` placeholder adoption for credentials, secrets, and other node-/environment-specific values
 
 Usually better to defer unless the user asks for deeper work:
 
-- large `PRSProperties`-driven credential migrations across many modules
+- blanket migration of all committed property-file values to env-backed form
 - stubborn legacy XML consumers that do not cleanly resolve env vars
 - migrations that would require many scattered direct `System.getenv()` reads
 - repo-local one-off env bootstrap classes that would be hard to standardize later
@@ -121,6 +153,9 @@ Before making changes, inspect:
    - startup/deployment docs describing how env vars are exported
 4. where env-dependent beans initialize
 5. which settings are easy wins now versus legacy holdovers better deferred for a shared follow-up
+   - first candidates: credentials/secrets
+   - next candidates: instance-specific IDs, node-/environment-specific endpoints, or values that should not be shared blindly across clustered installs
+   - usually leave stable non-sensitive defaults as committed properties
 
 Always ask for clarification if the startup style or desired integration point is unclear.
 Do not assume the user wants a broad all-at-once migration when a smaller phased pass would be cleaner.
@@ -300,6 +335,22 @@ If there is a manual bootstrap path, call the shared validator before env-depend
 
 The shared validator does **not** replace service-specific configuration/documentation work.
 
+When the target settings are consumed through `PRSProperties`, prefer this shared runtime pattern over repo-local bootstrap helpers or broad caller rewrites:
+
+```properties
+prs.config.user=${env:PRS_CONFIG_USER}
+prs.config.role=${env:PRS_CONFIG_ROLE:-DEVELOPMENT}
+credential.rest.url=${env:CREDENTIAL_REST_URL}
+```
+
+Then keep Java callers unchanged:
+
+```java
+PRSProperties.getProperty("prs.config.user")
+```
+
+Use this selectively. Do not convert stable, non-sensitive defaults just for the sake of uniformity.
+
 You may still need to update:
 
 - prefer `<artifactId>.env.example` for WAR/Tomcat-style services; keep the deployed `<artifactId>.env` file out of git and check in only the example file
@@ -309,8 +360,8 @@ You may still need to update:
 
 Small phased-rollout example:
 
-- **Do now:** Splunk/logging env vars, shared validation, env example file, Spring-friendly placeholder cleanup
-- **Defer for later:** broad legacy credential migration trapped behind `PRSProperties` or non-cooperative XML consumers unless the user explicitly approves deeper work
+- **Do now:** Splunk/logging env vars, shared validation, env example file, Spring-friendly placeholder cleanup, and selective `PRSProperties` placeholder adoption for credentials or instance-specific values
+- **Defer for later:** blanket property migration or non-cooperative XML consumers unless the user explicitly approves deeper work
 
 If the deployment model uses a host or service startup script to source env files before Tomcat or Java starts, update those docs/scripts to use the artifact-specific env filename consistently.
 
@@ -327,6 +378,12 @@ Expected model:
 3. shared validator validates those values
 
 ## Migration Guidance
+
+Whenever a variable belongs in the env-validated set and is also consumed at runtime through `PRSProperties`, prefer keeping the validation and runtime source aligned:
+
+1. validate the env var with the shared validator
+2. back the corresponding legacy property key with `${env:...}` or `${env:...:-default}` when that setting is sensitive or deployment-specific
+3. keep stable, non-sensitive committed defaults as ordinary properties
 
 If the consuming repo already has a local validator class:
 
@@ -345,8 +402,9 @@ When using this skill, the agent should usually produce:
 1. a short adoption plan
 2. the exact dependency change, if needed
 3. the exact XML or Java wiring changes
-4. any `.env.example` or doc updates still needed in the consumer repo
-5. validation notes explaining what was tested and what startup ordering assumptions remain
+4. a clear split between values that should remain committed defaults and values that should become env-backed
+5. any `.env.example` or doc updates still needed in the consumer repo
+6. validation notes explaining what was tested and what startup ordering assumptions remain
 
 ## Constraints
 
@@ -358,4 +416,5 @@ When using this skill, the agent should usually produce:
 - Do not couple the validator runtime to `log4j2.xml` mutation or `.env.example` generation
 - Do not guess startup ordering in ambiguous repos; inspect and ask for clarification
 - Do not turn a straightforward env-validation request into a broad legacy-config refactor unless the user clearly wants that
+- Do not recommend env-backing every property by default; prefer credentials/secrets and other instance-/environment-specific values first
 - If the consuming repo cannot yet import `PRSCommonComponents`, explain the dependency blocker clearly instead of falling back to code duplication without approval
