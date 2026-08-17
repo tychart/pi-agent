@@ -9,8 +9,9 @@ agent/models-store.json
 agent/litellm-models.json
 agent/litellm-models-dev.json
 
-# Session history (per-machine, changes frequently)
+# Session history and subagent mission index (per-machine, changes frequently)
 agent/sessions/
+agent/missions/
 
 # Precompiled binaries (machine-specific)
 agent/bin/
