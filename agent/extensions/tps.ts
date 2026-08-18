@@ -1,12 +1,12 @@
 /**
- * TPS Extension - real-time tokens/sec with 10-second moving average.
+ * TPS Extension - real-time tokens/sec with 1-second moving average.
  *
  * Widget shows (during streaming):
- *   • 10-second moving-average TPS (all LLM output: text, thinking, etc.)
+ *   • 1-second moving-average TPS (all LLM output: text, thinking, etc.)
  *   • TTFT (time to first text token)
  *
  * After each turn, notifies with:
- *   • 10-second moving-average TPS
+ *   • 1-second moving-average TPS
  *   • Actual totalTokens from API usage stats
  *   • TTFT
  *
@@ -16,7 +16,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { AssistantMessageEvent } from "@earendil-works/pi-ai";
 
-const WINDOW_MS = 5_000; // 5-second sliding window (configurable)
+const WINDOW_MS = 1_000; // 1-second sliding window (configurable)
 
 interface StreamingState {
   firstTextDeltaMs: number;
@@ -70,6 +70,7 @@ export default function (pi: ExtensionAPI) {
 
       // TPS = deltas in window / window duration (seconds)
       state.movingAvgTps = state.deltaTimestamps.length / (WINDOW_MS / 1000);
+      
     }
 
     // Update widget in real-time
@@ -108,7 +109,7 @@ export default function (pi: ExtensionAPI) {
           ? state.movingAvgTps.toFixed(2)
           : state.movingAvgTps.toFixed(1);
         ctx.ui.notify(
-          `⚡ ${tpsStr} tok/s (10s moving avg)\n` +
+          `⚡ ${tpsStr} tok/s (1s moving avg)\n` +
           `  ${state.deltaTimestamps.length} deltas in window, TTFT: ${state.ttftMs}ms`
         );
       } else {
