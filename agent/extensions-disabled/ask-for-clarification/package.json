@@ -1,0 +1,21 @@
+{
+  "name": "custom-ask-for-clarification",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local custom fork of custom-ask-for-clarification for Pi.",
+  "dependencies": {
+    "@juicesharp/rpiv-config": "^2.6.2",
+    "typebox": "^1.1.24"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.84.2",
+    "@earendil-works/pi-tui": "^0.84.2"
+  },
+  "devDependencies": {
+    "jiti": "^2.7.0"
+  },
+  "scripts": {
+    "test": "node tests/rpc-edit-option.test.mjs"
+  }
+}

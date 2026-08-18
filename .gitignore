@@ -34,6 +34,7 @@ agent/run-history.jsonl
 # Auto-generated local state
 agent/models-store.json
 pi-session-manager/
+**/node_modules/
 
 # Editor swap files
 *.swp
