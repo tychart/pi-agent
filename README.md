@@ -23,6 +23,7 @@ My [pi coding agent](https://pi.dev) configuration. Extensions, skills, prompt t
 | `npm:pi-web-access` | Web search, fetch content, get search content |
 | `npm:pi-provider-litellm` | LiteLLM provider integration |
 | `npm:pi-subagents` | Subagent delegation (chains, parallel, async) |
+| `npm:pi-memory` | Persistent memory (daily logs, long-term memory, scratchpad) with semantic search |
 
 ### Custom extensions
 
@@ -41,6 +42,7 @@ pi install npm:@plannotator/pi-extension \
 && pi install npm:pi-web-access \
 && pi install npm:pi-provider-litellm \
 && pi install npm:pi-subagents \
+&& pi install npm:pi-memory \
 && pi update --extensions
 ```
 
@@ -67,6 +69,7 @@ pi install npm:@plannotator/pi-extension \
 && pi install npm:pi-web-access \
 && pi install npm:pi-provider-litellm \
 && pi install npm:pi-subagents \
+&& pi install npm:pi-memory \
 && pi update --extensions
 
 # 4. Add credentials if needed
@@ -89,6 +92,7 @@ pi install npm:@plannotator/pi-extension \
 && pi install npm:pi-web-access \
 && pi install npm:pi-provider-litellm \
 && pi install npm:pi-subagents \
+&& pi install npm:pi-memory \
 && pi update --extensions
 ```
 
