@@ -12,6 +12,7 @@ agent/litellm-models-dev.json
 # Session history and subagent mission index (per-machine, changes frequently)
 agent/sessions/
 agent/missions/
+agent/memory/
 
 # Precompiled binaries (machine-specific)
 agent/bin/
@@ -35,6 +36,7 @@ agent/run-history.jsonl
 agent/models-store.json
 pi-session-manager/
 **/node_modules/
+agent/litellm-mcp-pauses/
 
 # Editor swap files
 *.swp
