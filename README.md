@@ -43,6 +43,7 @@ pi install npm:@plannotator/pi-extension \
 && pi install npm:pi-provider-litellm \
 && pi install npm:pi-subagents \
 && pi install npm:pi-memory \
+&& pi install npm:@juicesharp/rpiv-ask-user-question \
 && pi update --extensions
 ```
 
