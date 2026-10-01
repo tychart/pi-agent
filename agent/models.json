@@ -7,12 +7,12 @@
       "models": [
         {
           "contextWindow": 128000,
-          "id": "qwen3.6-35b-normal-vram10",
+          "id": "qwen3.6-35b-128k-vram10",
           "input": [
             "text",
             "image"
           ],
-          "name": "qwen3.6-normal-vram10"
+          "name": "qwen3.6-128k-vram10"
         }
       ]
     },

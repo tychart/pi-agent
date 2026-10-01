@@ -31,6 +31,7 @@ agent/tmp/
 # Subagent runtime artifacts
 .pi-subagents/
 agent/run-history.jsonl
+agent/pi-subagents/
 
 # Auto-generated local state
 agent/models-store.json
