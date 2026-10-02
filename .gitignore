@@ -38,6 +38,7 @@ agent/models-store.json
 pi-session-manager/
 **/node_modules/
 agent/litellm-mcp-pauses/
+agent/web-search-cache/
 
 # Editor swap files
 *.swp

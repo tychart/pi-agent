@@ -1,0 +1,12 @@
+[Unit]
+Description=Pi Session Manager CLI server
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/pi-session-cli
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
