@@ -20,6 +20,7 @@ agent/bin/
 # Extension/npm dependencies (installed on each machine)
 agent/node_modules/
 agent/npm/
+agent/bun.lock
 
 # Compiled extensions (auto-generated)
 agent/extensions/**/*.js
@@ -39,6 +40,8 @@ pi-session-manager/
 **/node_modules/
 agent/litellm-mcp-pauses/
 agent/web-search-cache/
+bun.lock
+agent/package.json
 
 # Editor swap files
 *.swp

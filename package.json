@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "@juicesharp/rpiv-ask-user-question": "^2.13.8",
+    "@plannotator/pi-extension": "^0.28.20",
+    "pi-extensions": "/home/tychart/.pi/agent/npm",
+    "pi-provider-litellm": "^4.2.0",
+    "pi-subagents": "^0.78.0",
+    "pi-web-access": "^0.40.0"
+  }
+}
